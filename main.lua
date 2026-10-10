@@ -572,7 +572,7 @@ local function runSelftest()
   end
   if f == 715 then FX.rays, FX.particles, FX.slams, G.rankBanner, G._banner, G.bannerQueue = {}, {}, {}, nil, nil, {} end
   if f == 716 then shot("reboot_tree") end
-  if f == 717 then G.treeView = {x = 0, y = 0, z = 0.19}; G.treeSel = nil end
+  if f == 717 then G.treeView = {x = 0, y = 0, z = 0.17}; G.treeSel = nil end
   if f == 719 then shot("reboot_tree_fit") end
   -- zone shatter transition + jackpot slam
   if f == 721 then G.tab = "map"; S.bossDown = true; G.zoneBefore = S.zone; G.shatterPending = nil; G.shatter = nil end

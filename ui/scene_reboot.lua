@@ -13,7 +13,7 @@ local Sc = {}
 
 local VX, VY, VW, VH = 340, 92, 916, 538      -- tree viewport
 local BASE_U = 90                            -- pixels per tree unit at zoom 1
-local FIT_Z = 0.19
+local FIT_Z = 0.17
 G.treeView = G.treeView or {x = 0, y = 0, z = 0.9}
 G.treeSel = nil
 local drag, panelRect, screenPos = nil, nil, {}
@@ -235,8 +235,8 @@ local function tree()
     local far, ranks = 0, 0
     for _, n in ipairs(T.NODES) do if n.b == b.id then far = math.max(far, n.d); ranks = ranks + G.tr(n.id) end end
     local a = math.rad(b.a)
-    local d = far * T.SPREAD + 1.4
-    local lx, ly = cx + math.cos(a) * d * U, cy + math.sin(a) * d * U
+    local d = far * T.SPREAD * U + 34 + 30 * clamp(z, 0.5, 1.4) -- pixels past the tip node, at any zoom
+    local lx, ly = cx + math.cos(a) * d, cy + math.sin(a) * d
     lg.setFont(z >= 0.4 and Fo.l or Fo.m)
     shadowText(b.id, lx - 120, ly - 14, 240, C[b.col], 0.7)
     lg.setFont(Fo.xs); shadowText(ranks .. " RANKS", lx - 120, ly + (z >= 0.4 and 14 or 8), 240, C.dim)
@@ -301,7 +301,7 @@ local function tree()
   local bx = VX + VW - 112
   H.button(bx, VY + 3, 32, 20, "-", true, function() Sc.zoom(-1, VX + VW / 2, VY + VH / 2) end, C.line, Fo.s)
   H.button(bx + 36, VY + 3, 32, 20, "+", true, function() Sc.zoom(1, VX + VW / 2, VY + VH / 2) end, C.line, Fo.s)
-  H.button(bx + 72, VY + 3, 36, 20, "FIT", true, function() G.treeView = {x = 0, y = 0, z = FIT_Z} end, C.line, Fo.xs)
+  H.button(bx + 72, VY + 3, 36, 20, "FIT", true, function() G.treeView = {x = 0, y = 14, z = FIT_Z} end, C.line, Fo.xs)
   H.scrollRegion(VX, VY, VW, VH, "treeZoom")
   detail()
 end
