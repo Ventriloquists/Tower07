@@ -7,18 +7,33 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
 ## Features
 
 - **Reactor core**: tap for energy, build tap chains and trigger Core Surge. 1 in 1000 taps hits a jackpot.
+  - **Core heat**: every tap heats the core. Keep it in the 75-95% sweet spot for x2.5 taps; hold the rhythm for 12s to ignite a free Core Surge. Mashing past 100% overheats and locks taps for 4s.
 - **20 unit types** with milestone multipliers, 200+ tech upgrades, Smart Buy and hold-to-buy.
 - **Hydro rigs**: tanks fill over time (even offline). Collect at peak pressure for a bonus.
-- **Drone hangar**: every fabrication shows 3 drones and you keep 1. Five rarities (STD to OMEGA), traits, pity counters, upgrades and equippable modules.
+- **Drone hangar**: every fabrication shows 3 drones and you keep 1. Five rarities (STD to OMEGA), traits, pity counters, upgrades and equippable modules. Every drone has a callsign; PROTO and OMEGA drones earn a second word.
+- **Fusion**: drag a drone onto another of the same rarity (or press COMBINE) to fuse 3 into 1 of the next rarity. The result keeps the best MK and level, inherits traits, and returns modules to the vault.
+- **PRISM / PRISMATIC**: a holographic top rarity for drones and modules with a rainbow foil look. Drop-only (best crates), never fabricated, fused or forged, and the whole screen goes off when one drops.
+- **Loot Fiesta**: mass fabrication (x10 / x25 / x50 / x100 / MAX) with free bonus pulls and one ELITE+ guaranteed per 10 pulls. The best of every 3 candidates is kept automatically, then a fusion cascade merges everything as far up as it can go, and overflow is recycled into parts.
+- **Auto-fuse**: fuses every 3 drones of one rarity up to a rarity you choose, in the hangar and during fiestas. Lock favourite drones to keep them out of fusion and scrapping.
+- **Fleet autopilot**: auto-loadout keeps the best modules on the strongest drones, auto-upgrade spends parts, auto-salvage recycles low-rarity modules.
+- **Module forge** (vault): 3 modules of the same type, rarity and item level fuse into 1 at item level +1 (keeping the best roll); 10 modules of one rarity become 1 of the next rarity.
+- **Mythic Altar**: feed 10 MYTHIC modules to forge a perk point whose cards are all ENHANCED or PRIME.
 - **Tactical map**: fog of war, sector claiming, scav enemies, motherships, endless zones and loot crates in six rarities.
+  - **Weather** changes every few minutes: TAILWIND (faster drones and missions), FOG (hidden scavs, crates one rarity higher), STORM (slower drones, double strike damage).
+  - **Radiation sectors** take twice as long to claim but always drop an extra crate.
+  - **TET uplink**: an orbital strike that charges over time and with every kill, hitting all scavs within 3 sectors.
+  - **Map layers**: switch between TERRAIN, THREAT, LOOT and RADIATION overlays.
+  - **Scav alert**: claiming sectors and destroying scavs raise the zone alert; at 100% the mothership arrives. More territory spawns more scavs, and drones far stronger than a sector claim it much faster, so a maxed fleet clears a zone in about 1.5 minutes.
+  - **Mothership bounty**: kill the zone boss within 5 minutes for 2 LEGENDARY crates and 3 fab tokens. An alert follows you on every screen while it is alive.
 - **Meta progression**: technician ranks with pick-1-of-3 perks, an endless Signal Track reward ladder, directives, a daily supply streak, timed world events and 300+ log entries.
-- **Reboot (prestige)**: trade the cycle for Core Data and spend it in a five-branch protocol tree.
+- **Reboot (prestige)**: trade the cycle for Core Data and spend it in a zoomable, pannable protocol skill tree: 6 branches, 54 nodes, 200+ ranks (output, tapping, fleet, map range, salvage, signals).
 - **Glossary**: every game term is highlighted in the UI and explained on hover.
-- **Settings**: 10 color themes (including a colorblind-safe palette and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
+- **Settings**: 22 color themes (including high-contrast, colorblind-safe, memey and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
   - **Boss key (F12)**: disguises the game as a spreadsheet or build log.
   - **Nap mode** and **eco mode** to save power.
   - **Touch-grass reminders**.
   - **Lazy mode**: automatically claims routine rewards.
+  - **Meme loot sounds**: vine boom, air horn and worse for special drops.
 
 ## Running
 
@@ -77,6 +92,18 @@ love . --selftest
 
 ```bash
 love . --pace
+```
+
+**Zone pacing**: simulates a zone with a weak, a mid and a maxed fleet and writes clear times to `zonesim.txt`.
+
+```bash
+love . --zonesim
+```
+
+**Sandbox**: runs the normal game with a separate save folder (`tower_harvest_sandbox`), so your real save stays untouched. Any crash writes `crash.txt` to the save folder.
+
+```bash
+love . --sandbox
 ```
 
 ## Credits

@@ -12,11 +12,14 @@ local FX = require "game.fx"
 local G = require "game.core"
 require "game.tac"
 require "game.meta"
+require "game.fiesta"
+require "game.tree"
 local D = require "game.data"
 local Set = require "game.settings"
 local Th = require "ui.themes"
 local F = require "ui.frame"
 local Ov = require "ui.overlays"
+local Shatter = require "ui.shatter"
 local SettingsUI = require "ui.settings"
 local Disguise = require "ui.disguise"
 local Reactor = require "ui.reactor"
@@ -92,13 +95,14 @@ local function applySettings(key)
   FX.setAmbient(v.ambient)
   FX.density = v.confetti
   FX.reduced = v.reducedMotion
+  FX.meme = v.memeSounds == true
   H.showTips = v.tooltips
   H.keywords = v.keywords
   G.fastReveal = v.fastReveal
   G.saveInterval = v.autosave
   G.breakInterval = v.grass * 60
   Th.apply(v.theme)
-  love.mouse.setVisible(not v.reticle or G.bossMode)
+  love.mouse.setVisible((not v.reticle) or G.bossMode == true)
   lastVolume = nil
   applyVolume()
 end
@@ -112,7 +116,7 @@ function G.setBossMode(on)
     love.window.setTitle(Disguise.TITLES[Set.v.disguise] or " ")
     G.save()
   end
-  love.mouse.setVisible(on or not Set.v.reticle)
+  love.mouse.setVisible((on == true) or not Set.v.reticle)
   applyVolume()
 end
 
@@ -131,6 +135,8 @@ end
 function love.load(args)
   for _, a in ipairs(args or {}) do if a == "--selftest" then selftest = true end end
   if selftest then love.filesystem.setIdentity("tower_harvest_selftest") end
+  -- --sandbox: normal game, separate save folder (for testing without touching the real save)
+  for _, a in ipairs(args or {}) do if a == "--sandbox" then love.filesystem.setIdentity("tower_harvest_sandbox") end end
   G.selftest = selftest
   if not selftest then Set.load() end
   love.math.setRandomSeed(os.time())
@@ -147,6 +153,66 @@ function love.load(args)
   applySettings()
   G.lastInput = love.timer.getTime()
   for _, a in ipairs(args or {}) do if a == "--pace" then G.paceProbe() end end
+  for _, a in ipairs(args or {}) do if a == "--zonesim" then G.zoneSim() end end
+  for _, a in ipairs(args or {}) do
+    if a == "--mapdiag" then
+      local ok, r = pcall(function() G.recalc(); return G.mapReport() end)
+      love.filesystem.write("mapdiag.txt", tostring(r))
+      love.event.quit()
+    end
+  end
+end
+
+-- Zone pacing: how long a zone takes with a weak vs. a maxed fleet (no rendering) -> zonesim.txt
+function G.zoneSim()
+  love.filesystem.setIdentity("tower_harvest_zonesim")
+  G.selftest = true
+  G.unlocked = function() return true, 0 end -- every system on
+  local out = {}
+  local fleets = {
+    {name = "WEAK   6x ADV LV5, no modules", n = 6, r = 2, lvl = 5, mod = nil},
+    {name = "MID   10x ELITE LV15, epic modules", n = 10, r = 3, lvl = 15, mod = 4},
+    {name = "MAXED 21x OMEGA LV40, mythic modules", n = 21, r = 5, lvl = 40, mod = 6},
+  }
+  for _, zone in ipairs({1, 3, 6}) do
+    for _, fl in ipairs(fleets) do
+      G.init(true)
+      G.dailyPending = false
+      local S = G.S
+      S.zone = zone
+      S.pupg.bay = true; S.pupg.fl_bay = 0
+      S.autoClaim, S.autoHunt = true, true
+      G.newMap()
+      for _ = 1, fl.n do
+        local d = G.makeDrone(fl.r)
+        d.lvl, d.mk = fl.lvl, zone
+        if fl.mod then
+          for s = 1, D.RARITY[fl.r].slots do
+            local m = G.newModule(fl.mod)
+            for k, x in ipairs(S.modules) do if x == m then table.remove(S.modules, k) end end
+            d.mods[s] = m
+          end
+        end
+        G.addDrone(d)
+      end
+      G.enemies = {}
+      G.recalc()
+      local t, spawnAt, killAt, peak = 0, nil, nil, 0
+      while t < 3600 do
+        t = t + 0.1
+        G.warp = G.warp + 0.1 -- missions run on the game clock
+        G.update(0.1)
+        peak = math.max(peak, #G.enemies)
+        if not spawnAt and G.boss() then spawnAt = t end
+        if S.bossDown then killAt = t break end
+      end
+      out[#out + 1] = string.format("zone %d  %-38s mothership %6s   cleared %6s   land %3d%%  kills %4d  peak scavs %d",
+        zone, fl.name, spawnAt and string.format("%.1fm", spawnAt / 60) or "never", killAt and string.format("%.1fm", killAt / 60) or "never",
+        math.floor(G.landFrac() * 100), S.kills, peak)
+    end
+  end
+  love.filesystem.write("zonesim.txt", table.concat(out, "\n"))
+  love.event.quit()
 end
 
 -- Pacing probe: simulates a new player for 30 minutes (no rendering) and writes a timeline.
@@ -306,15 +372,263 @@ local function runSelftest()
     Set.v.lazy = false
   end
   if f == 232 then G.save(); G.load(); G.init(false); G.recalc() end
+  -- reticle must not crash (regression: setVisible(nil))
+  if f == 501 then Set.v.reticle = true; applySettings("reticle"); G.selftestReticle = "reticle-ok" end
+  if f == 502 then Set.v.reticle = false; applySettings("reticle") end
+  -- fusion: drag one ADV onto another, autofill, fuse
+  if f == 503 then
+    G.choiceQueue = {}
+    for _ = 1, 4 do G.addDrone(G.makeDrone(2)) end
+    G.tab = "hangar"
+  end
+  if f == 505 then
+    local ids = {}
+    for _, d in ipairs(S.drones) do if d.r == 2 and G.canCombine(d) then ids[#ids + 1] = d.id end end
+    G.fuseBefore = #S.drones
+    G.openCombine({ids[1], ids[2]})
+  end
+  if f == 507 then shot("combine_select") end
+  if f == 508 then
+    local ex = {}
+    for _, id in ipairs(G.combine.slots) do ex[id] = true end
+    G.combine.slots[3] = G.combineEligible(G.combine.r, ex)[1].id
+    G.combine.phase, G.combine.t = "fusing", 0.5
+  end
+  if f == 512 then shot("combine_fusing") end
+  if f == 554 and G.combine then G.combine.t = 1.29 end
+  if f == 558 then shot("combine_done") end
+  if f == 560 then
+    local r = G.combine and G.combine.result
+    G.selftestFuse = (r and r.r == 3 and #S.drones == G.fuseBefore - 2) and ("fuse-ok " .. r.name) or "fuse-FAIL"
+    G.combine = nil
+    -- every higher tier: ELITE -> PROTO -> OMEGA (PROTO+ adds a second callsign word)
+    for tier = 3, 4 do
+      local ids = {}
+      for _ = 1, 3 do local d = G.makeDrone(tier); G.addDrone(d); ids[#ids + 1] = d.id end
+      local ok, nd = pcall(G.combineDrones, ids)
+      if not (ok and nd and nd.r == tier + 1 and nd.name:find(" ")) then
+        G.selftestFuse = "fuse-FAIL tier" .. tier .. " " .. tostring(nd)
+      else
+        G.selftestFuse = G.selftestFuse .. " / " .. nd.name
+      end
+    end
+  end
+  -- map depth
+  if f == 562 then
+    G.tab = "map"; G.mapLayer = "threat"; G.mapPanel = "weather"
+    G.weather = {def = G.WEATHER[4], t = 100, dur = 150, wind = 1, windSpeed = 55}
+    for _ = 1, 5 do G.spawnEnemy() end
+    for _, d in ipairs(S.drones) do if G.droneReady(d) then G.tacSel = {kind = "drone", id = d.id} break end end
+  end
+  if f == 566 then shot("map_threat_storm") end
+  if f == 568 then G.mapLayer = "radiation"; G.mapPanel = "tet"; S.tetCharge = 1; V.fakeMouse = {500, 300}
+    G.weather = {def = G.WEATHER[3], t = 100, dur = 150, wind = 2, windSpeed = 9} end
+  if f == 572 then shot("map_radiation_tet") end
+  if f == 574 then local before = S.tetStrikes; G.tetStrike(); G.selftestTet = (S.tetStrikes == before + 1) and "tet-ok" or "tet-FAIL" end
+  if f == 578 then shot("map_tet_beam"); V.fakeMouse = nil; G.mapLayer = "loot"; G.mapPanel = "log" end
+  if f == 582 then shot("map_loot"); G.mapLayer = "terrain"; G.tab = "core" end
   if f == 233 then
     G.tab = "build"
     for _ = 1, 5 do for _, u in ipairs(G.availableUpgrades()) do G.buyUpgrade(u, nil, nil, true) end G.recalc() end
   end
   if f == 237 then shot("fix_build_empty") end
-  if f == 240 then
+  -- loot fiesta: x50 with auto-fuse up to OMEGA, one drone locked
+  if f == 600 then
+    G.tab = "hangar"; S.hydro = 1e12; S.autoFuse = 5; S.fabsTotal = math.max(S.fabsTotal, 10)
+    G.lockedId = S.drones[1] and S.drones[1].id
+    if S.drones[1] then S.drones[1].lock = true end
+  end
+  if f == 601 then shot("hangar_fiesta_button") end
+  if f == 603 then G.openFiesta(); G.fiestaOpt.n = 50 end
+  if f == 608 then shot("fiesta_setup") end
+  if f == 610 then G.fiestaBefore = S.fiestas; G.startFiesta() end
+  if f == 630 and G.fiesta then G.fiesta.wait = -2.5 end
+  if f == 640 then shot("fiesta_pulls") end
+  if f == 642 then require("ui.fiesta").escape() end
+  if f == 650 then shot("fiesta_cascade") end
+  if f == 652 then require("ui.fiesta").escape() end
+  if f == 658 then shot("fiesta_done") end
+  if f == 660 then
+    local fi = G.fiesta
+    local ok = fi and S.fiestas == G.fiestaBefore + 1 and #fi.pulls == 57 and #S.drones <= G.bayCap() and #fi.kept > 0
+    ok = ok and (not G.lockedId or G.findDrone(G.lockedId) ~= nil)
+    G.autoFuseFleet()
+    ok = ok and (not G.lockedId or G.findDrone(G.lockedId) ~= nil)
+    G.selftestFiesta = ok and ("fiesta-ok fusions=" .. #fi.merges .. " kept=" .. #fi.kept .. " chain=" .. S.bestChain) or "fiesta-FAIL"
+    require("ui.fiesta").escape()
+  end
+  -- heat: 20 instant taps must overheat and lock taps; the sweet spot pays x2.5
+  if f == 664 then
+    G.tab = "core"; G.heat, G.overheatT = 0, 0
+    local e0 = S.stardust
+    for _ = 1, 20 do G.tap(G.OX, G.OY) end
+    local locked = G.overheatT > 0
+    local e1 = S.stardust
+    G.tap(G.OX, G.OY)
+    local blocked = S.stardust == e1
+    G.overheatT, G.heat = 0, 0.85
+    local ok = locked and blocked and e1 > e0 and G.inSweetSpot()
+    G.selftestHeat = ok and "heat-ok" or ("heat-FAIL " .. tostring(locked) .. tostring(blocked))
+  end
+  if f == 668 then shot("core_heat_sweet") end
+  if f == 670 then G.heat, G.overheatT = 1, 2.5 end
+  if f == 674 then shot("core_heat_overheat"); G.overheatT, G.heat = 0, 0 end
+  -- mothership + bounty, map indicator
+  if f == 676 then
+    G.tab = "map"
+    local b = G.spawnEnemy("MOTHERSHIP")
+    G.bossBefore = S.bounties
+    G.selftestBoss = b and b.bounty and "boss-spawned" or "boss-FAIL"
+  end
+  if f == 680 then shot("map_mothership") end
+  if f == 682 then
+    local b = G.boss()
+    if b then G.damageEnemy(b, b.hp + 1) end
+    G.selftestBoss = (S.bounties == G.bossBefore + 1) and "bounty-ok" or "bounty-FAIL"
+  end
+  -- altar: 10 mythics -> 1 boosted perk point
+  if f == 684 then
+    G.tab = "hangar"
+    for _ = 1, 12 do G.newModule(6) end
+    for _ = 1, 20 do G.newModule(love.math.random(1, 5)) end
+    S.autoLoadout = false
+    G.altarPP = S.perkPoints
+  end
+  if f == 685 then shot("hangar_vault_button") end
+  if f == 686 then G.openVault() end
+  if f == 690 then shot("vault") end
+  if f == 692 then G.openAltar() end
+  if f == 694 then shot("altar") end
+  if f == 696 then
+    G.altarTransmute(1)
+    G.altar = nil; G.openPerkChoice()
+    local pc = G.perkChoice
+    local ok = S.perkPoints == G.altarPP + 1 and pc and pc.boost and pc.cands[1].grade >= 2
+    G.selftestAltar = ok and "altar-ok" or "altar-FAIL"
+  end
+  if f == 698 then shot("perk_mythic") end
+  if f == 700 then
+    G.perkChoice.t = 5
+    G.pickPerk(1)
+    -- picking the boosted perk must lead back to the altar, closing the altar back to the vault
+    local back = G.altar ~= nil and G.perkChoice == nil
+    G.altar = nil
+    local vault = G.vaultOpen
+    G.vaultOpen = false
+    if not (back and vault) then G.selftestAltar = "altar-return-FAIL" end
+  end
+  -- autopilot: auto-upgrade spends parts
+  if f == 704 then
+    S.parts = 1e6; S.autoUpgrade = true; G.apLvl = 0
+    for _, d in ipairs(S.drones) do G.apLvl = G.apLvl + d.lvl end
+    G.autopilotUpdate(1.1)
+    local l = 0
+    for _, d in ipairs(S.drones) do l = l + d.lvl end
+    G.selftestPilot = l > G.apLvl and "pilot-ok" or "pilot-FAIL"
+  end
+  -- forge: 3 identical -> IL+1 with the best roll; 10 of a rarity -> next rarity
+  if f == 706 then
+    S.autoLoadout, S.autoSalvage = false, 0
+    S.modules = {}
+    for k = 1, 3 do S.modUid = S.modUid + 1; table.insert(S.modules, {uid = S.modUid, t = "PWR", r = 3, ilvl = 2, v = 0.2 + k * 0.01}) end
+    for k = 1, 4 do S.modUid = S.modUid + 1; table.insert(S.modules, {uid = S.modUid, t = "YLD", r = 4, ilvl = 1, v = 0.6}) end
+    for _ = 1, 12 do G.newModule(1) end
+    local key = "PWR|3|2"
+    local m = G.forgeIL(key)
+    local okIL = m and m.ilvl == 3 and math.abs(m.v - 0.23 / 1.2 * 1.4) < 1e-9
+    local before = #G.promoteInputs(1)
+    local p = G.promote(1)
+    local okP = p and p.r == 2 and #G.promoteInputs(1) == before - 10
+    G.selftestForge = (okIL and okP) and "forge-ok" or ("forge-FAIL " .. tostring(okIL) .. tostring(okP))
+    for _ = 1, 9 do G.newModule(1) end
+    G.vaultOpen = true; G.vaultMode = "forge"; G.tab = "hangar"
+  end
+  if f == 710 then shot("vault_forge") end
+  if f == 712 then G.vaultOpen = false; G.vaultMode = "inventory" end
+  -- protocol tree: ranks, prerequisites, claim range
+  if f == 713 then
+    local T = G.TREE
+    S.dm = 1e7
+    local out0 = G.globalMult
+    local refused = not G.treeCan(T.BYID.eco_out) -- needs Preloaded Fleet first
+    G.treeBuy(T.BYID.starter)
+    local ok = refused and G.treeBuy(T.BYID.eco_out) and G.tr("eco_out") == 1 and G.globalMult > out0 * 1.2
+    for _ = 1, 12 do G.treeBuy(T.BYID.eco_out) end
+    ok = ok and G.tr("eco_out") == 10                         -- capped at max rank
+    local locked = not G.treeCan(T.BYID.map_range) or G.tr("turret") > 0
+    for _, id in ipairs({"carto", "turret", "map_range", "map_scan", "core_tap", "fl_power", "sv_luck", "sg_pump"}) do G.treeBuy(T.BYID[id]) end
+    ok = ok and locked and G.tr("map_range") == 1
+    -- a sector 2 away from the tower is now claimable-adjacent
+    local i2 = G.idx(G.TX + 2, G.TY)
+    ok = ok and G.adjClaimed(i2)
+    -- a huge bank must be absorbed: SPEND ALL keeps buying, endless OVERDRIVE ranks soak up the rest
+    S.dm = 1e40
+    G.treeSpendAll()
+    local od = G.tr("od_eco") + G.tr("od_core") + G.tr("od_fleet") + G.tr("od_map") + G.tr("od_salv") + G.tr("od_sig")
+    ok = ok and S.dm < 1e38 and od > 100
+    G.spendInfo = string.format("spent-left=%s od=%d", H.fmt(S.dm), od)
+    G.selftestTree = ok and ("tree-ok " .. G.spendInfo) or string.format("tree-FAIL eco=%d range=%d turret=%d adj=%s locked=%s gm=%.3g/%.3g", G.tr("eco_out"), G.tr("map_range"), G.tr("turret"), tostring(G.adjClaimed(i2)), tostring(locked), G.globalMult, out0)
+    G.tab = "nova"; G.treeSel = "od_map"; G.treeView = {x = 0, y = -330, z = 0.9}
+  end
+  if f == 715 then FX.rays, FX.particles, FX.slams, G.rankBanner, G._banner, G.bannerQueue = {}, {}, {}, nil, nil, {} end
+  if f == 716 then shot("reboot_tree") end
+  if f == 717 then G.treeView = {x = 0, y = 0, z = 0.19}; G.treeSel = nil end
+  if f == 719 then shot("reboot_tree_fit") end
+  -- zone shatter transition + jackpot slam
+  if f == 721 then G.tab = "map"; S.bossDown = true; G.zoneBefore = S.zone; G.shatterPending = nil; G.shatter = nil end
+  if f == 723 then G.requestAdvance() end
+  if f == 726 then
+    G.selftestShatter = (G.shatter and S.zone == G.zoneBefore + 1) and ("shatter-ok shards=" .. #G.shatter.shards) or
+      ("shatter-FAIL zone " .. G.zoneBefore .. "->" .. S.zone .. " " .. tostring(G.shatter))
+    if G.shatter then for _ = 1, 8 do Shatter.update(0.05) end end
+  end
+  if f == 727 then shot("shatter_crack") end
+  if f == 728 and G.shatter then for _ = 1, 9 do Shatter.update(0.05) end end
+  if f == 729 then shot("shatter_fly") end
+  if f == 730 and G.shatter then for _ = 1, 30 do Shatter.update(0.1) end end
+  if f == 732 then FX.slams = {}; FX.rays = {}; G.grantCrate(6, 640, 420) end
+  if f == 733 then FX.update(0.3) end
+  if f == 735 then shot("mythic_slam") end
+  if f == 737 then G.tab = "map"; G.tacSel = S.drones[1] and {kind = "drone", id = S.drones[1].id} end
+  if f == 739 then shot("map_drone_selected") end
+  if f == 740 then
+    S.rigs[2].on, S.rigs[2].lvl = false, 1
+    local l0 = S.rigs[1].lvl
+    S.stardust, S.autoRigUp = 1e40, true
+    G.autoBuy()
+    G.selftestRigs = (S.rigs[2].on and S.rigs[1].lvl > l0) and "rigs-ok" or "rigs-FAIL"
+    S.autoRigUp = false
+  end
+  -- PRISM: drop-only rarity + full-screen escalation
+  if f == 742 then
+    local fab6 = false
+    for _ = 1, 20000 do if G.rollRarity() >= 6 then fab6 = true end end
+    local om = G.makeDrone(5)
+    local fuse6 = G.canCombine(om)
+    for _ = 1, 12 do G.newModule(D.MYTHIC) end
+    local forge7 = G.promote(D.MYTHIC, true) ~= nil
+    FX.prism, FX.rays, FX.particles, FX.slams = nil, {}, {}, {}
+    G.tab = "map"
+    G.grantCrate(7, 640, 360)
+    G.selftestPrism = (not fab6 and not fuse6 and not forge7 and FX.prism ~= nil) and "prism-ok" or
+      string.format("prism-FAIL fab=%s fuse=%s forge=%s event=%s", tostring(fab6), tostring(fuse6), tostring(forge7), tostring(FX.prism ~= nil))
+  end
+  if f == 743 then FX.update(0.4) end
+  if f == 744 then FX.update(0.5) end
+  if f == 746 then shot("prism_event") end
+  if f == 748 then
+    FX.prism, FX.rays, FX.particles, FX.slams = nil, {}, {}, {}
+    G.tab = "hangar"
+    local d = G.makeDrone(6); G.addDrone(d); G.hangarSel = d.id
+  end
+  if f == 751 then shot("prism_drone_card") end
+  if f == 760 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
       " " .. tostring(G.selftestImport) .. " " .. tostring(G.selftestReset) .. " " .. tostring(G.selftestLazy) ..
-      " " .. tostring(G.selftestKw) ..
+      " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
+      " " .. tostring(G.selftestTet) .. " " .. tostring(G.selftestFiesta) .. " " .. tostring(G.selftestHeat) ..
+      " " .. tostring(G.selftestBoss) .. " " .. tostring(G.selftestAltar) .. " " .. tostring(G.selftestPilot) .. " " .. tostring(G.selftestForge) .. " " .. tostring(G.selftestTree) .. " " .. tostring(G.selftestShatter) .. " " .. tostring(G.selftestRigs) .. " " .. tostring(G.selftestPrism) ..
+      " " .. (G.mapReport():gsub("\n", " | ")) ..
       " rank=" .. G.S.rank .. " pass=" .. G.S.passTier .. "/" .. G.S.passClaimed)
     love.event.quit()
   end
@@ -326,11 +640,15 @@ end
 function love.update(dt)
   frameStart = love.timer.getTime()
   dt = math.min(dt, 0.1)
+  -- jackpot slow motion (FX.slam)
+  if FX.slow > 0 then FX.slow = FX.slow - dt; dt = dt * 0.25 end
   if selftest then runSelftest() end
   if not G.unlocked(G.tab) then G.tab = "core" end
   G.modal = Ov.isModal()
   G.update(dt)
   FX.update(dt)
+  H.updateHolo(love.timer.getTime())
+  Shatter.update(dt)
   applyVolume()
   if G.bossMode then bossT = bossT + dt end
 
@@ -431,6 +749,7 @@ function love.draw()
   if shake > 0 then love.graphics.translate(H.rnd(-shake, shake), H.rnd(-shake, shake)) end
   local scene = SCENES[G.tab] or SCENES.core
   scene.draw()
+  Shatter.draw()
   love.graphics.pop()
   F.topBar()
   F.dock()
@@ -440,6 +759,7 @@ function love.draw()
   F.banner()
   -- particles go over card reveals, but under the settings screen
   if G.settingsOpen then FX.drawParticles(); Ov.draw() else Ov.draw(); FX.drawParticles() end
+  FX.drawPrism()
   local isNapping = napping() or G.forceNap
   if isNapping then drawNap() end
   if Set.v.showFps then
@@ -482,6 +802,8 @@ function love.mousepressed(sx, sy, b)
   end
   local sg = G.signal
   if sg and (x - sg.x) ^ 2 + (y - sg.y) ^ 2 < 40 * 40 then G.catchSignal() return end
+  if G.tab == "hangar" then SCENES.hangar.press(x, y)
+  elseif G.tab == "nova" then SCENES.nova.press(x, y) end
   local h = H.click(x, y)
   if h then
     if h.hold == "drag" then dragHit = h
@@ -491,7 +813,11 @@ function love.mousepressed(sx, sy, b)
   if G.tab == "core" and Reactor.hit(x, y) then G.tap(x, y) end
 end
 
-function love.mousereleased() holdHit, dragHit = nil, nil end
+function love.mousereleased(sx, sy, b)
+  holdHit, dragHit = nil, nil
+  if b == 1 and G.tab == "hangar" and not Ov.isModal() then SCENES.hangar.release(V.toVirtual(sx, sy)) end
+  if b == 1 and G.tab == "nova" and not Ov.isModal() then SCENES.nova.release(V.toVirtual(sx, sy)) end
+end
 
 function love.wheelmoved(_, dy)
   wake()
@@ -503,6 +829,7 @@ function love.wheelmoved(_, dy)
     G.passView = math.max(1, (G.passView or 1) - dy)
     return
   end
+  if r.key == "treeZoom" then SCENES.nova.zoom(dy, x, y) return end
   G.scroll[r.key] = H.clamp(G.scroll[r.key] - dy * 60, 0, G.maxScroll[r.key])
 end
 
@@ -534,8 +861,12 @@ function love.keypressed(k)
       if G.report then G.collectReport()
       elseif G.dailyPending then G.claimDaily() end
     elseif k == "escape" then
-      if G.perkChoice then G.closePerks()
-      elseif #G.choiceQueue > 0 and #G.S.drones >= G.bayCap() then cancelChoice() end
+      if G.fiesta then require("ui.fiesta").escape()
+      elseif G.altar then require("ui.altar").escape()
+      elseif G.combine and G.combine.phase ~= "fusing" then G.combine = nil
+      elseif G.perkChoice then G.closePerks()
+      elseif #G.choiceQueue > 0 and #G.S.drones >= G.bayCap() then cancelChoice()
+      elseif G.vaultOpen then require("ui.vault").escape() end
     end
     return
   end
@@ -564,6 +895,8 @@ function love.quit() if not selftest then G.save() end return false end
 
 local defaultErr = love.errorhandler
 function love.errorhandler(msg)
+  -- always leave a crash log next to the save
+  pcall(love.filesystem.write, "crash.txt", os.date() .. "\n" .. tostring(msg) .. "\n" .. debug.traceback())
   if selftest then
     love.filesystem.write("selftest_result.txt", "ERROR " .. tostring(msg) .. "\n" .. debug.traceback())
     return nil

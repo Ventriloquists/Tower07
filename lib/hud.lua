@@ -15,6 +15,7 @@ H.C = {
   teal   = {0.13, 0.42, 0.52},
   sea    = {0.03, 0.075, 0.095},
   gold   = {1.00, 0.84, 0.36},
+  holo   = {1.00, 0.60, 0.95}, -- PRISM rarity: recoloured every frame (rainbow), never themed
 }
 local C = H.C
 
@@ -26,6 +27,47 @@ local col = H.col
 function H.rnd(a, b) return a + love.math.random() * (b - a) end
 function H.clamp(x, a, b) return math.max(a, math.min(b, x)) end
 local clamp = H.clamp
+
+-- rainbow hue (0..1) -> rgb, slightly pastel so it reads as holographic foil
+function H.hue(h)
+  local t = 2 * math.pi
+  return 0.62 + 0.38 * math.cos(t * h), 0.62 + 0.38 * math.cos(t * (h - 1 / 3)), 0.62 + 0.38 * math.cos(t * (h - 2 / 3))
+end
+function H.updateHolo(time)
+  local c = H.C.holo
+  c[1], c[2], c[3] = H.hue(time * 0.35)
+end
+-- holographic foil: moving diagonal rainbow bands + glints, clipped to the rect
+function H.holoFX(x, y, w, h, a)
+  a = a or 1
+  local t = love.timer.getTime()
+  lg.push("all")
+  lg.intersectScissor(x, y, w, h)
+  lg.setBlendMode("add")
+  local band = 14
+  local slant = h * 0.6
+  local off = (t * 40) % (band * 6)
+  for k = -2, math.ceil((w + slant) / band) + 6 do
+    local bx = x + k * band - off
+    local r, g, b = H.hue(k * 0.11 + t * 0.25)
+    love.graphics.setColor(r, g, b, 0.10 * a)
+    love.graphics.polygon("fill", bx, y + h, bx + band, y + h, bx + band + slant, y, bx + slant, y)
+  end
+  -- a bright sheen sweeping across
+  local sx = x - w + ((t * 0.5) % 1.6) * (w * 2)
+  love.graphics.setColor(1, 1, 1, 0.12 * a)
+  love.graphics.polygon("fill", sx, y + h, sx + 18, y + h, sx + 18 + slant, y, sx + slant, y)
+  -- glints
+  for k = 1, 4 do
+    local gx = x + ((k * 0.37 + t * 0.07 * k) % 1) * w
+    local gy = y + ((k * 0.61 + t * 0.05) % 1) * h
+    local s = 1.5 + 1.5 * math.max(0, math.sin(t * 3 + k * 2))
+    love.graphics.setColor(1, 1, 1, 0.5 * a)
+    love.graphics.polygon("fill", gx, gy - s * 2, gx + s * 0.5, gy, gx, gy + s * 2, gx - s * 0.5, gy)
+    love.graphics.polygon("fill", gx - s * 2, gy, gx, gy + s * 0.5, gx + s * 2, gy, gx, gy - s * 0.5)
+  end
+  lg.pop()
+end
 
 H.fonts = {}
 function H.initFonts()

@@ -102,9 +102,9 @@ local function record()
   local x, y, w = 892, 196, 364
   H.card(x, y, w, 196, "DRONE COLLECTION", C.line, "ALL-TIME")
   local maxC = 1
-  for k = 1, 5 do maxC = math.max(maxC, S.rarityEver[k] or 0) end
+  for k = 1, #D.RARITY do maxC = math.max(maxC, S.rarityEver[k] or 0) end
   for k, r in ipairs(D.RARITY) do
-    local ry = y + 34 + (k - 1) * 30
+    local ry = y + 34 + (k - 1) * 26
     local n = S.rarityEver[k] or 0
     local rc = C[r.col]
     H.droneIcon(x + 28, ry + 10, 0.55, n > 0 and rc or C.faint)

@@ -11,11 +11,15 @@ local Ov = {}
 
 local I = require "ui.icons"
 local SettingsUI = require "ui.settings"
+local Combine = require "ui.combine"
+local Fiesta = require "ui.fiesta"
+local Altar = require "ui.altar"
+local Vault = require "ui.vault"
 
 H.showTips = true
 
 function Ov.isModal()
-  return G.settingsOpen or G.report ~= nil or G.dailyPending or #G.choiceQueue > 0 or G.perkChoice ~= nil
+  return G.settingsOpen or G.fiesta ~= nil or G.altar ~= nil or G.vaultOpen or G.combine ~= nil or G.report ~= nil or G.dailyPending or #G.choiceQueue > 0 or G.perkChoice ~= nil
 end
 
 local function dim(a)
@@ -164,7 +168,8 @@ local function card(ch, k)
   H.brackets(x, y, w, h, 14, hov and C.white or rc)
   lg.setFont(F.m); col(rc); lg.printf(rr.name .. (d.r == 5 and " // MYTHIC" or ""), x, y + 5, w, "center")
   H.droneIcon(cx, y + 74, 1.8, rc)
-  lg.setFont(F.huge); col(C.white); lg.printf(tostring(d.id), x, y + 104, w, "center")
+  lg.setFont(F.huge); col(C.white); lg.printf(tostring(d.id), x, y + 94, w, "center")
+  lg.setFont(F.s); col(rc); lg.printf(d.name or "", x, y + 148, w, "center")
   H.label("MK" .. d.mk .. "   //   " .. rr.slots .. " MODULE SLOTS", x + 16, y + 168, C.dim)
   H.label(string.format("POWER %s", fmt(G.dronePower(d))), x + 16, y + 184, C.white)
   H.label(string.format("OUTPUT +%d%%", math.floor(G.droneBonus(d) * 100 + 0.5)), x + 120, y + 184, C.white)
@@ -210,7 +215,8 @@ local function choice()
       ch.t = last + 0.2
     end)
   end
-  H.label("ELITE+ IN " .. math.max(1, 10 - S.pity) .. "  //  PROTO+ IN " .. math.max(1, 50 - S.pityP), 640 - 80, 560, C.orange)
+  local pe, pp = G.pityCaps()
+  H.label("ELITE+ IN " .. math.max(1, pe - S.pity) .. "  //  PROTO+ IN " .. math.max(1, pp - S.pityP), 640 - 80, 560, C.orange)
 end
 
 ----------------------------------------------------------------------
@@ -263,7 +269,8 @@ local function perks()
   H.clearHits()
   dim(0.9)
   lg.setFont(H.fonts.l); col(C.gold)
-  lg.printf("RANK " .. S.rank .. " // CHOOSE AN OVERCLOCK", 0, 132, 1280, "center")
+  if ch.boost then col(C[D.LOOT[D.MYTHIC].col]) end
+  lg.printf(ch.boost and "MYTHIC TRANSMUTATION // EVERY CARD ENHANCED+" or ("RANK " .. S.rank .. " // CHOOSE AN OVERCLOCK"), 0, 132, 1280, "center")
   H.label(S.perkPoints .. " PERK POINT" .. (S.perkPoints > 1 and "S" or "") .. " AVAILABLE  //  PERKS ARE PERMANENT AND STACK", 640 - 170, 164, C.dim)
   for k = 1, 3 do perkCard(ch, k) end
   H.button(640 - 90, 528, 180, 30, "DECIDE LATER", true, G.closePerks, C.dim, H.fonts.xs)
@@ -272,10 +279,17 @@ end
 function Ov.draw()
   if G.settingsOpen then
     SettingsUI.draw()
+  elseif G.fiesta then
+    Fiesta.draw()
+  elseif G.altar then
+    Altar.draw()
+  elseif G.combine then
+    Combine.draw()
   elseif G.report then report()
   elseif G.dailyPending then daily()
   elseif #G.choiceQueue > 0 then choice()
-  elseif G.perkChoice then perks() end
+  elseif G.perkChoice then perks()
+  elseif G.vaultOpen then Vault.draw() end
   tooltip()
 end
 

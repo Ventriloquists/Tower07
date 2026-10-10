@@ -101,6 +101,9 @@ function Sc.draw()
   end
   H.label(fmt(math.floor(S.hydro)) .. " H2O IN RESERVE  //  " .. string.format("%.1f", flow * 60) .. " H2O / MIN" ..
     (G.eventActive("HYDRO") and "  //  HYDRO SURGE x5" or ""), 260, 70, G.eventActive("HYDRO") and C.orange or C.dim)
+  H.button(1256 - 500, 64, 160, 30, "AUTO-UPGRADE: " .. (S.autoRigUp and "ON" or "OFF"), true,
+    function() S.autoRigUp = not S.autoRigUp; FX.play("tick", 1.2) end, S.autoRigUp and C.orange or C.dim, Fo.xs)
+  if H.mouseIn(1256 - 500, 64, 160, 30) then H.setTip("RIG AUTO-UPGRADE", "Restores offline rigs and levels the cheapest rig automatically. Never spends more than half of your energy at once.") end
   local ok, need = G.hasArchive("autoRigs")
   H.button(1256 - 330, 64, 160, 30, ok and ("AUTO-COLLECT: " .. (S.autoRigs and "ON" or "OFF")) or ("AUTO // " .. need .. " LOGS"),
     ok, function() S.autoRigs = not S.autoRigs end, S.autoRigs and C.orange or C.dim, Fo.xs)

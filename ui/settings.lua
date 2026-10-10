@@ -134,6 +134,8 @@ local function rows(section)
       vol("ambient", "REACTOR HUM", "Ambient drone of a very large machine."),
       {"MUTE IN BACKGROUND", "Silence the game while the window is not focused.", function(xr, y, cl)
         toggle(xr, y, v.muteUnfocused, function() set("muteUnfocused", not v.muteUnfocused) end, cl) end},
+      {"MEME LOOT SOUNDS", "LEGENDARY = vine boom, MYTHIC = air horn, PRISM = all of it at once. Slams thud harder.", function(xr, y, cl)
+        toggle(xr, y, v.memeSounds, function() set("memeSounds", not v.memeSounds); if v.memeSounds then FX.play("airhorn") end end, cl) end},
     }
   elseif section == "gameplay" then
     return {

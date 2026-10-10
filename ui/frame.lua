@@ -158,7 +158,22 @@ function F.topBar()
   local ex, ew = 996, 182
   local ev = G.event
   local hovE = H.mouseIn(ex, 8, ew, 36)
-  if ev then
+  local boss = G.boss and G.boss()
+  if boss then
+    -- an active mothership beats the event pill: red, pulsing, click to jump to the map
+    local b = 0.5 + 0.5 * math.sin(G.time * 6)
+    col(C.red, 0.2 + 0.15 * b); lg.rectangle("fill", ex, 8, ew, 36)
+    H.hatch(ex, 8, ew, 36, C.red, 0.2, 6)
+    H.brackets(ex, 8, ew, 36, 6, C.red)
+    I.draw("event", ex + 16, 26, 8, C.red)
+    lg.setFont(Fo.s); col(C.red); lg.print("MOTHERSHIP", ex + 30, 10)
+    local bt = (boss.bounty or 0) > 0 and H.fmtTime(boss.bounty) or "--"
+    lg.setFont(Fo.xs); col(C.white); lg.printf(bt, ex, 12, ew - 8, "right")
+    H.bar(ex + 30, 34, ew - 40, 3, boss.hp / boss.max, C.red)
+    if hovE then H.setTip("MOTHERSHIP ACTIVE", "Hull " .. math.floor(boss.hp / boss.max * 100) .. "%. Destroy it to clear the zone" ..
+      ((boss.bounty or 0) > 0 and " - before the bounty runs out for 2 LEGENDARY crates + 3 fab tokens." or ".") .. " Click to open the MAP.") end
+    H.addHit(ex, 8, ew, 36, function() if G.unlocked("map") then G.tab = "map"; FX.play("tap", 1.6, 0.4) end end)
+  elseif ev then
     local ec = C[ev.def.col]
     col(ec, 0.22 + 0.08 * math.sin(G.time * 5)); lg.rectangle("fill", ex, 8, ew, 36)
     H.hatch(ex, 8, ew, 36, ec, 0.15, 6)
@@ -223,6 +238,12 @@ function F.dock()
     lg.setFont(Fo.s); col(ic, open and 1 or 0.7)
     lg.printf(open and s[2] or (need .. " LOGS"), x, y + 38, w, "center")
     H.label(tostring(k), x + 10, y + 6, C.faint)
+    if open and key == "map" and G.boss and G.boss() then
+      local b = 0.5 + 0.5 * math.sin(G.time * 6)
+      col(C.red, 0.08 + 0.12 * b); lg.rectangle("fill", x + 2, y + 1, w - 4, 63)
+      H.brackets(x + 4, y + 3, w - 8, 59, 6, C.red, 0.5 + 0.5 * b)
+      lg.setFont(Fo.xs); col(C.red); lg.printf("MOTHERSHIP", x, y + 52, w, "center")
+    end
     if open and badges[key] then
       local n, bc = badges[key][1], badges[key][2]
       if n > 0 then H.badge(cx + 18, y + 12, n, bc) end

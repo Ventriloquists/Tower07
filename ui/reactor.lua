@@ -78,6 +78,8 @@ function R.draw()
     lg.setLineWidth(1)
   end
 
+  R.heatGauge(OX, OY, k)
+
   -- core
   if hov then
     lg.setBlendMode("add")
@@ -121,6 +123,46 @@ function R.draw()
     lg.setFont(H.fonts.s)
     col(C.orange, 0.6 + pulse * 0.4)
     lg.printf("<< CLICK THE CORE TO HARVEST >>", OX - 200, OY + 120, 400, "center")
+  end
+end
+
+-- heat gauge: an arc on the left of the reactor, filling bottom to top; gold band = sweet spot
+local A0, A1 = math.pi * 0.66, math.pi * 1.34
+local function ang(t) return A0 + (A1 - A0) * t end
+function R.heatGauge(OX, OY, k)
+  local rad = 226 * k
+  local heat, hot, sweet = G.heat, G.overheatT > 0, G.inSweetSpot()
+  local blink = 0.5 + 0.5 * math.sin(G.time * 14)
+  lg.setLineWidth(6)
+  col(C.faint, 0.5); lg.arc("line", "open", OX, OY, rad, A0, A1, 40)
+  col(C.gold, sweet and (0.55 + 0.35 * blink) or 0.3); lg.arc("line", "open", OX, OY, rad, ang(G.SWEET_LO), ang(G.SWEET_HI), 12)
+  col(C.red, 0.4); lg.arc("line", "open", OX, OY, rad, ang(G.SWEET_HI), A1, 6)
+  lg.setLineWidth(3)
+  local fc = hot and C.red or (sweet and C.gold or (heat > G.SWEET_HI and C.red or C.line))
+  if heat > 0.005 then col(fc, hot and (0.5 + 0.5 * blink) or 0.95); lg.arc("line", "open", OX, OY, rad, A0, ang(heat), 40) end
+  -- rhythm progress just inside the gauge
+  if G.sweetT > 0 then
+    lg.setLineWidth(2); col(C.gold, 0.8)
+    lg.arc("line", "open", OX, OY, rad - 9, A0, ang(G.sweetT / G.RHYTHM_TIME), 40)
+  end
+  lg.setLineWidth(1)
+  -- needle + readout
+  local a = ang(heat)
+  col(fc); lg.line(OX + math.cos(a) * (rad - 10), OY + math.sin(a) * (rad - 10), OX + math.cos(a) * (rad + 10), OY + math.sin(a) * (rad + 10))
+  local tx, ty = OX - rad - 112, OY - 30
+  H.label("CORE HEAT", tx, ty, C.dim)
+  lg.setFont(H.fonts.l); col(fc); lg.printf(math.floor(heat * 100 + 0.5) .. "%", tx, ty + 12, 100, "right")
+  if hot then
+    lg.setFont(H.fonts.xs); col(C.red, 0.6 + 0.4 * blink); lg.printf(string.format("VENTING %.1fs", G.overheatT), tx, ty + 44, 100, "right")
+  elseif sweet then
+    lg.setFont(H.fonts.s); col(C.gold); lg.printf("SWEET SPOT x" .. G.SWEET_MULT, tx - 20, ty + 44, 120, "right")
+  elseif heat > G.SWEET_HI then
+    lg.setFont(H.fonts.xs); col(C.red, 0.6 + 0.4 * blink); lg.printf("TOO HOT", tx, ty + 44, 100, "right")
+  end
+  if H.mouseIn(tx, ty, 110, 64) then
+    H.setTip("CORE HEAT", "Every tap heats the core; it cools on its own. Keep it in the gold sweet spot (75-95%) for x" ..
+      G.SWEET_MULT .. " tap power and double surge fill. 12s in a row ignites a Core Surge. 100% = overheat: taps lock for " ..
+      G.OVERHEAT_TIME .. "s.")
   end
 end
 
