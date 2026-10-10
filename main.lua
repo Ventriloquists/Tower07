@@ -648,6 +648,7 @@ function love.update(dt)
   G.update(dt)
   FX.update(dt)
   H.updateHolo(love.timer.getTime())
+  Th.animate(love.timer.getTime())
   Shatter.update(dt)
   applyVolume()
   if G.bossMode then bossT = bossT + dt end
@@ -852,6 +853,8 @@ function love.keypressed(k)
   end
   if G.bossMode then return end
   if k == "f11" or (k == "return" and love.keyboard.isDown("lalt", "ralt")) then toggleFullscreen() return end
+  -- panic button for the cursed themes: F9 always restores the default palette
+  if k == "f9" then Set.v.theme = "oblivion"; Set.save(); applySettings("theme"); FX.toast("THEME RESET", "Back to OBLIVION. Your eyes thank you.", H.C.line) return end
   if G.settingsOpen then
     if k == "escape" then G.settingsOpen = false end
     return

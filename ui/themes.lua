@@ -79,6 +79,115 @@ T.LIST = {
     bg = {0.06, 0.22, 0.06}, panel = {0.19, 0.38, 0.19}, line = {0.61, 0.74, 0.06}, white = {0.80, 0.86, 0.45},
     dim = {0.55, 0.67, 0.06}, faint = {0.19, 0.38, 0.19}, red = {0.80, 0.86, 0.45}, orange = {0.70, 0.80, 0.30},
     teal = {0.19, 0.38, 0.19}, sea = {0.10, 0.28, 0.10}, gold = {0.85, 0.92, 0.55}}},
+  ---------------------------------------------------------------- creative
+  {id = "blueprint", name = "BLUEPRINT", desc = "Approved by engineering. Not by legal.", c = {
+    bg = {0.05, 0.22, 0.48}, panel = {0.07, 0.27, 0.55}, line = {0.92, 0.96, 1.00}, white = {1, 1, 1},
+    dim = {0.65, 0.78, 0.95}, faint = {0.25, 0.45, 0.72}, red = {1.00, 0.55, 0.45}, orange = {1.00, 0.88, 0.45},
+    teal = {0.15, 0.38, 0.68}, sea = {0.06, 0.25, 0.52}, gold = {1.00, 0.95, 0.60}}},
+  {id = "sakura", name = "SAKURA", desc = "Cherry blossoms over the scav wastes.", c = {
+    bg = {0.09, 0.06, 0.08}, panel = {0.15, 0.09, 0.13}, line = {1.00, 0.72, 0.82}, white = {1.00, 0.95, 0.97},
+    dim = {0.72, 0.52, 0.62}, faint = {0.32, 0.20, 0.27}, red = {1.00, 0.35, 0.45}, orange = {0.75, 0.95, 0.65},
+    teal = {0.40, 0.22, 0.32}, sea = {0.12, 0.07, 0.11}, gold = {1.00, 0.88, 0.62}}},
+  {id = "toxic", name = "TOXIC WASTE", desc = "Glows in the dark. Do not lick.", c = {
+    bg = {0.05, 0.02, 0.07}, panel = {0.09, 0.04, 0.12}, line = {0.65, 1.00, 0.10}, white = {0.92, 1.00, 0.85},
+    dim = {0.55, 0.40, 0.70}, faint = {0.22, 0.13, 0.30}, red = {1.00, 0.25, 0.70}, orange = {1.00, 0.95, 0.10},
+    teal = {0.30, 0.12, 0.40}, sea = {0.08, 0.03, 0.10}, gold = {0.80, 1.00, 0.30}}},
+  {id = "arctic", name = "ARCTIC STATION", desc = "Minus 40. The coffee froze.", c = {
+    bg = {0.06, 0.09, 0.14}, panel = {0.10, 0.15, 0.22}, line = {0.80, 0.94, 1.00}, white = {1, 1, 1},
+    dim = {0.55, 0.68, 0.80}, faint = {0.22, 0.30, 0.40}, red = {1.00, 0.45, 0.50}, orange = {0.55, 0.85, 1.00},
+    teal = {0.20, 0.35, 0.50}, sea = {0.08, 0.13, 0.20}, gold = {0.95, 0.98, 1.00}}},
+  {id = "newsprint", name = "MORNING PAPER", desc = "Extra! Extra! Tower 07 hits record output!", c = {
+    bg = {0.93, 0.90, 0.82}, panel = {0.88, 0.84, 0.74}, line = {0.10, 0.10, 0.10}, white = {0.05, 0.05, 0.05},
+    dim = {0.35, 0.33, 0.30}, faint = {0.68, 0.64, 0.56}, red = {0.70, 0.08, 0.08}, orange = {0.45, 0.30, 0.10},
+    teal = {0.75, 0.72, 0.64}, sea = {0.82, 0.80, 0.72}, gold = {0.50, 0.38, 0.05}}},
+  {id = "miami", name = "MIAMI NIGHTS", desc = "Pastel suits mandatory. Synth bass included.", c = {
+    bg = {0.04, 0.05, 0.10}, panel = {0.07, 0.08, 0.16}, line = {0.20, 0.95, 0.90}, white = {1.00, 0.95, 0.98},
+    dim = {0.95, 0.50, 0.75}, faint = {0.25, 0.20, 0.35}, red = {1.00, 0.25, 0.55}, orange = {1.00, 0.60, 0.25},
+    teal = {0.10, 0.40, 0.45}, sea = {0.05, 0.08, 0.15}, gold = {1.00, 0.90, 0.50}}},
+  ---------------------------------------------------------------- memes
+  {id = "shrek", name = "GET OUT OF MY SWAMP", desc = "Towers have layers. Like onions.", c = {
+    bg = {0.10, 0.13, 0.04}, panel = {0.17, 0.21, 0.07}, line = {0.66, 0.80, 0.18}, white = {0.95, 0.95, 0.75},
+    dim = {0.55, 0.45, 0.25}, faint = {0.28, 0.25, 0.10}, red = {0.80, 0.35, 0.15}, orange = {0.85, 0.70, 0.35},
+    teal = {0.30, 0.35, 0.10}, sea = {0.20, 0.22, 0.10}, gold = {0.95, 0.85, 0.40}}},
+  {id = "dirt", name = "PUNCH TREE GET WOOD", desc = "Mining harvest, crafting tower.", c = {
+    bg = {0.35, 0.24, 0.15}, panel = {0.45, 0.31, 0.20}, line = {0.45, 0.80, 0.25}, white = {1, 1, 1},
+    dim = {0.75, 0.62, 0.48}, faint = {0.28, 0.19, 0.12}, red = {0.85, 0.15, 0.10}, orange = {0.95, 0.75, 0.25},
+    teal = {0.30, 0.55, 0.20}, sea = {0.20, 0.35, 0.75}, gold = {0.35, 0.85, 0.95}}},
+  {id = "hotdog", name = "HOTDOG STAND", desc = "The worst Windows 3.1 theme, lovingly restored.", c = {
+    bg = {1.00, 1.00, 0.00}, panel = {1.00, 0.00, 0.00}, line = {0.00, 0.00, 0.00}, white = {0, 0, 0},
+    dim = {0.45, 0.10, 0.00}, faint = {0.85, 0.75, 0.00}, red = {0.70, 0.00, 0.00}, orange = {1, 1, 1},
+    teal = {1.00, 0.30, 0.00}, sea = {1.00, 0.85, 0.00}, gold = {1, 1, 1}}},
+  {id = "mspaint", name = "MS PAINT", desc = "Made in 4 minutes. Signed by the artist.", c = {
+    bg = {1, 1, 1}, panel = {0.95, 0.95, 0.95}, line = {0.0, 0.0, 1.0}, white = {0, 0, 0},
+    dim = {0.30, 0.30, 0.30}, faint = {0.75, 0.75, 0.75}, red = {1.0, 0.0, 0.0}, orange = {0.0, 0.70, 0.0},
+    teal = {0.70, 0.85, 1.00}, sea = {0.55, 0.80, 1.00}, gold = {0.85, 0.70, 0.0}}},
+  {id = "bliss", name = "BLISS.JPG", desc = "Green hill. Blue sky. Windows XP is starting.", c = {
+    bg = {0.30, 0.55, 0.90}, panel = {0.25, 0.55, 0.20}, line = {1, 1, 1}, white = {1, 1, 1},
+    dim = {0.85, 0.92, 1.00}, faint = {0.45, 0.70, 0.95}, red = {0.95, 0.30, 0.20}, orange = {1.0, 0.85, 0.3},
+    teal = {0.30, 0.62, 0.25}, sea = {0.20, 0.45, 0.85}, gold = {1.0, 0.95, 0.5}}},
+  {id = "cheeto", name = "CHEETO DUST", desc = "Your keyboard is orange now. Forever.", c = {
+    bg = {0.20, 0.08, 0.00}, panel = {0.32, 0.13, 0.00}, line = {1.00, 0.55, 0.05}, white = {1.00, 0.85, 0.55},
+    dim = {0.85, 0.45, 0.10}, faint = {0.45, 0.20, 0.02}, red = {1.00, 0.30, 0.00}, orange = {1.00, 0.75, 0.20},
+    teal = {0.55, 0.25, 0.02}, sea = {0.28, 0.11, 0.00}, gold = {1.00, 0.90, 0.40}}},
+  {id = "baby", name = "BABY MODE", desc = "Soft colors for a soft tower. Goo goo.", c = {
+    bg = {0.92, 0.95, 1.00}, panel = {1.00, 0.92, 0.95}, line = {0.45, 0.60, 0.95}, white = {0.25, 0.25, 0.40},
+    dim = {0.60, 0.55, 0.70}, faint = {0.85, 0.82, 0.92}, red = {1.00, 0.50, 0.60}, orange = {0.95, 0.75, 0.30},
+    teal = {0.80, 0.90, 1.00}, sea = {0.85, 0.92, 1.00}, gold = {0.95, 0.80, 0.35}}},
+  {id = "beige", name = "CORPORATE BEIGE", desc = "Synergy-driven harvest solutions. Per my last email.", c = {
+    bg = {0.85, 0.80, 0.70}, panel = {0.80, 0.75, 0.64}, line = {0.45, 0.40, 0.32}, white = {0.25, 0.22, 0.18},
+    dim = {0.55, 0.50, 0.42}, faint = {0.72, 0.67, 0.57}, red = {0.65, 0.40, 0.30}, orange = {0.60, 0.52, 0.35},
+    teal = {0.75, 0.70, 0.60}, sea = {0.78, 0.73, 0.62}, gold = {0.62, 0.55, 0.35}}},
+  {id = "rainbowroad", name = "RAINBOW ROAD", desc = "Every line is a different color every second.", anim = "rainbow",
+    lock = "Own a PRISM drone", unlocked = function(S) return (S.prismEver or 0) >= 1 end, c = {
+    bg = {0.02, 0.01, 0.05}, panel = {0.05, 0.03, 0.10}, line = {1.00, 0.40, 0.40}, white = {1, 1, 1},
+    dim = {0.70, 0.60, 0.90}, faint = {0.20, 0.15, 0.30}, red = {1.00, 0.30, 0.50}, orange = {0.40, 1.00, 0.60},
+    teal = {0.25, 0.15, 0.45}, sea = {0.05, 0.03, 0.12}, gold = {1.00, 0.95, 0.40}}},
+  {id = "disco", name = "DISCO INFERNO", desc = "Burn, baby, burn. The whole HUD is the dance floor.", anim = "disco", c = {
+    bg = {0.20, 0.00, 0.20}, panel = {0.25, 0.05, 0.25}, line = {1, 1, 1}, white = {1, 1, 1},
+    dim = {1.00, 0.80, 1.00}, faint = {0.50, 0.30, 0.50}, red = {1.00, 0.30, 0.30}, orange = {1.00, 0.90, 0.20},
+    teal = {0.40, 0.10, 0.40}, sea = {0.22, 0.02, 0.22}, gold = {1.00, 0.95, 0.50}}},
+  {id = "deepfried", name = "DEEP FRIED", desc = "Saturation 900%. Crispy around the edges.", anim = "fried",
+    lock = "Overheat the core 10 times", unlocked = function(S) return (S.overheats or 0) >= 10 end, c = {
+    bg = {0.30, 0.05, 0.00}, panel = {0.55, 0.12, 0.00}, line = {1.00, 1.00, 0.00}, white = {1, 1, 1},
+    dim = {1.00, 0.60, 0.00}, faint = {0.75, 0.25, 0.00}, red = {1.00, 0.00, 0.00}, orange = {1.00, 0.45, 0.00},
+    teal = {0.80, 0.20, 0.00}, sea = {0.45, 0.08, 0.00}, gold = {1.00, 1.00, 0.30}}},
+  ---------------------------------------------------------------- cursed: barely or not playable. F9 always escapes.
+  {id = "fiftyshades", name = "50 SHADES OF GRAY", desc = "Everything is gray. Good luck. [F9 escapes]", cursed = true, c = {
+    bg = {0.50, 0.50, 0.50}, panel = {0.51, 0.51, 0.51}, line = {0.53, 0.53, 0.53}, white = {0.55, 0.55, 0.55},
+    dim = {0.52, 0.52, 0.52}, faint = {0.505, 0.505, 0.505}, red = {0.54, 0.53, 0.53}, orange = {0.54, 0.54, 0.53},
+    teal = {0.51, 0.51, 0.52}, sea = {0.50, 0.50, 0.51}, gold = {0.56, 0.56, 0.55}}},
+  {id = "blackout", name = "BLACKOUT", desc = "Who turned off the lights? [F9 escapes]", cursed = true, c = {
+    bg = {0, 0, 0}, panel = {0.01, 0.01, 0.01}, line = {0.03, 0.03, 0.03}, white = {0.05, 0.05, 0.05},
+    dim = {0.03, 0.03, 0.03}, faint = {0.015, 0.015, 0.015}, red = {0.06, 0.02, 0.02}, orange = {0.05, 0.04, 0.02},
+    teal = {0.01, 0.02, 0.02}, sea = {0.005, 0.01, 0.01}, gold = {0.06, 0.06, 0.04}}},
+  {id = "flashbang", name = "FLASHBANG", desc = "OUT! MY! EYES! [F9 escapes]", cursed = true, c = {
+    bg = {1, 1, 1}, panel = {1, 1, 1}, line = {0.97, 0.97, 0.97}, white = {0.95, 0.95, 0.95},
+    dim = {0.97, 0.97, 0.97}, faint = {0.99, 0.99, 0.99}, red = {1.00, 0.94, 0.94}, orange = {1.00, 0.97, 0.92},
+    teal = {0.98, 0.98, 1.00}, sea = {0.99, 0.99, 1.00}, gold = {1.00, 0.98, 0.90}}},
+  {id = "greenscreen", name = "CHROMA KEY", desc = "We will add the UI in post. [F9 escapes]", cursed = true, c = {
+    bg = {0.0, 0.85, 0.0}, panel = {0.0, 0.85, 0.0}, line = {0.0, 0.92, 0.0}, white = {0.0, 1.0, 0.0},
+    dim = {0.0, 0.88, 0.0}, faint = {0.0, 0.86, 0.0}, red = {0.1, 0.9, 0.0}, orange = {0.05, 0.95, 0.0},
+    teal = {0.0, 0.84, 0.05}, sea = {0.0, 0.83, 0.02}, gold = {0.15, 1.0, 0.1}}},
+  {id = "missing", name = "404 THEME NOT FOUND", desc = "Missing texture. Please reinstall reality. [F9 escapes]", cursed = true, anim = "missing", c = {
+    bg = {1, 0, 1}, panel = {0, 0, 0}, line = {1, 0, 1}, white = {0, 0, 0},
+    dim = {1, 0, 1}, faint = {0, 0, 0}, red = {1, 0, 1}, orange = {0, 0, 0},
+    teal = {1, 0, 1}, sea = {0, 0, 0}, gold = {1, 0, 1}}},
+  {id = "stickynote", name = "STICKY NOTE IN THE SUN", desc = "Yellow on yellow. Very readable. [F9 escapes]", cursed = true, c = {
+    bg = {1.00, 0.95, 0.40}, panel = {1.00, 0.93, 0.35}, line = {1.00, 1.00, 0.55}, white = {1.00, 0.98, 0.70},
+    dim = {0.98, 0.90, 0.40}, faint = {1.00, 0.92, 0.38}, red = {1.00, 0.85, 0.35}, orange = {1.00, 0.96, 0.50},
+    teal = {0.98, 0.92, 0.42}, sea = {1.00, 0.94, 0.45}, gold = {1.00, 1.00, 0.60}}},
+  {id = "camo", name = "TACTICAL CAMO", desc = "The UI is hiding. From the scavs. And from you. [F9 escapes]", cursed = true, c = {
+    bg = {0.28, 0.32, 0.20}, panel = {0.30, 0.33, 0.21}, line = {0.33, 0.36, 0.23}, white = {0.36, 0.38, 0.25},
+    dim = {0.31, 0.34, 0.22}, faint = {0.29, 0.33, 0.21}, red = {0.35, 0.33, 0.22}, orange = {0.34, 0.35, 0.22},
+    teal = {0.27, 0.31, 0.20}, sea = {0.26, 0.30, 0.19}, gold = {0.37, 0.38, 0.24}}},
+  {id = "colorblindhard", name = "RED/GREEN HARD MODE", desc = "Every alert is red. Or green. Who knows. [F9 escapes]", cursed = true, c = {
+    bg = {0.12, 0.10, 0.04}, panel = {0.16, 0.14, 0.06}, line = {0.55, 0.50, 0.15}, white = {0.60, 0.55, 0.18},
+    dim = {0.45, 0.42, 0.14}, faint = {0.25, 0.22, 0.08}, red = {0.58, 0.48, 0.12}, orange = {0.52, 0.52, 0.14},
+    teal = {0.20, 0.20, 0.07}, sea = {0.14, 0.13, 0.05}, gold = {0.60, 0.56, 0.16}}},
+  {id = "seasick", name = "SEASICK", desc = "The whole palette drifts. Bring a bucket. [F9 escapes]", cursed = true, anim = "seasick", c = {
+    bg = {0.05, 0.10, 0.08}, panel = {0.08, 0.15, 0.12}, line = {0.50, 0.85, 0.60}, white = {0.90, 1.00, 0.90},
+    dim = {0.40, 0.60, 0.45}, faint = {0.15, 0.25, 0.18}, red = {0.90, 0.50, 0.30}, orange = {0.80, 0.85, 0.30},
+    teal = {0.15, 0.35, 0.25}, sea = {0.06, 0.12, 0.10}, gold = {0.90, 0.95, 0.50}}},
   {id = "golden", name = "GOLDEN HOARD", desc = "Everything is loot.", lock = "Open a MYTHIC crate",
     unlocked = function(S) return (S.mythic or 0) >= 1 end, c = {
     bg = {0.040, 0.030, 0.010}, panel = {0.080, 0.060, 0.020}, line = {1.00, 0.82, 0.40}, white = {1.00, 0.97, 0.86},
@@ -96,6 +205,53 @@ T.LIST = {
     teal = {0.25, 0.15, 0.40}, sea = {0.03, 0.02, 0.05}, gold = {1.00, 0.85, 0.40}}},
 }
 
+-- animated themes recolour the live palette every frame (the theme's c table stays the base / preview)
+local hue = function(h) return H.hue(h) end
+T.ANIM = {
+  rainbow = function(t, C)
+    C.line[1], C.line[2], C.line[3] = hue(t * 0.30)
+    C.orange[1], C.orange[2], C.orange[3] = hue(t * 0.30 + 0.33)
+    C.red[1], C.red[2], C.red[3] = hue(t * 0.30 + 0.55)
+    C.gold[1], C.gold[2], C.gold[3] = hue(t * 0.30 + 0.75)
+    C.dim[1], C.dim[2], C.dim[3] = hue(t * 0.30 + 0.15)
+  end,
+  disco = function(t, C)
+    local r, g, b = hue(t * 0.18)
+    C.bg[1], C.bg[2], C.bg[3] = r * 0.22, g * 0.22, b * 0.22
+    C.panel[1], C.panel[2], C.panel[3] = r * 0.32, g * 0.32, b * 0.32
+    C.sea[1], C.sea[2], C.sea[3] = r * 0.25, g * 0.25, b * 0.25
+    C.line[1], C.line[2], C.line[3] = hue(t * 0.18 + 0.5)
+  end,
+  fried = function(t, C)
+    -- slow "jpeg crunch" wobble of the warm colors
+    local w = 0.5 + 0.5 * math.sin(t * 2.3)
+    C.line[2] = 0.85 + 0.15 * w
+    C.panel[1] = 0.45 + 0.15 * math.sin(t * 1.7)
+    C.orange[2] = 0.35 + 0.2 * math.sin(t * 3.1)
+  end,
+  missing = function(t, C)
+    -- checkerboard flip: magenta and black swap roles every 1.5 seconds
+    local on = math.floor(t / 1.5) % 2 == 0
+    local a, b = on and {1, 0, 1} or {0, 0, 0}, on and {0, 0, 0} or {1, 0, 1}
+    for _, k in ipairs({"bg", "line", "dim", "red", "teal", "gold"}) do C[k][1], C[k][2], C[k][3] = a[1], a[2], a[3] end
+    for _, k in ipairs({"panel", "white", "faint", "orange", "sea"}) do C[k][1], C[k][2], C[k][3] = b[1], b[2], b[3] end
+  end,
+  seasick = function(t, C)
+    -- every color slowly drifts around the hue wheel at a different speed
+    local keys = {"bg", "panel", "line", "white", "dim", "faint", "red", "orange", "teal", "sea", "gold"}
+    for i, k in ipairs(keys) do
+      local r, g, b = hue(t * (0.04 + i * 0.013) + i * 0.09)
+      local base = T.current and T.current.c[k] or C[k]
+      local m = (base[1] + base[2] + base[3]) / 3
+      C[k][1], C[k][2], C[k][3] = r * m * 1.3, g * m * 1.3, b * m * 1.3
+    end
+  end,
+}
+function T.animate(t)
+  local th = T.current
+  if th and th.anim and T.ANIM[th.anim] then T.ANIM[th.anim](t, H.C) end
+end
+
 function T.get(id)
   for _, t in ipairs(T.LIST) do if t.id == id then return t end end
   return T.LIST[1]
@@ -107,6 +263,7 @@ end
 
 function T.apply(id)
   local t = T.get(id)
+  T.current = t
   for k, v in pairs(t.c) do
     local dst = H.C[k]
     if dst then dst[1], dst[2], dst[3] = v[1], v[2], v[3] end
