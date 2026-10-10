@@ -140,6 +140,7 @@ D.RARITY = {
   {name = "ELITE", col = "orange", power = 8,  bonus = 0.12, scrap = 15,  upk = 2.5, slots = 2, traits = 1},
   {name = "PROTO", col = "red",    power = 20, bonus = 0.30, scrap = 40,  upk = 4,   slots = 3, traits = 2},
   {name = "OMEGA", col = "gold",   power = 60, bonus = 1.00, scrap = 150, upk = 6,   slots = 3, traits = 2},
+  {name = "PRISM", col = "holo",   power = 180, bonus = 3.00, scrap = 500, upk = 9,  slots = 4, traits = 3},
 }
 D.TRAITS = {
   {id = "HUNTER",     desc = "Power +60% vs scavs"},
@@ -161,9 +162,11 @@ D.LOOT = {
   {name = "EPIC",      col = "orange", secs = 420,  parts = 70,  hydro = 50,  mods = 0.90, nmods = 1, tokens = 0.25},
   {name = "LEGENDARY", col = "red",    secs = 900,  parts = 200, hydro = 150, mods = 1.00, nmods = 2, tokens = 1},
   {name = "MYTHIC",    col = "gold",   secs = 1800, parts = 600, hydro = 400, mods = 1.00, nmods = 3, tokens = 3},
+  {name = "PRISMATIC", col = "holo",   secs = 3600, parts = 2000, hydro = 1500, mods = 1.00, nmods = 4, tokens = 8},
 }
-D.LOOT_UP = {0, 0.35, 0.30, 0.25, 0.20, 0.15} -- chance to climb from tier k-1 to k
-D.RMUL = {1, 1.6, 2.5, 4, 6.5, 11}
+D.MYTHIC = 6 -- loot tier that feeds the Mythic Altar
+D.LOOT_UP = {0, 0.35, 0.30, 0.25, 0.20, 0.15, 0.04} -- chance to climb from tier k-1 to k
+D.RMUL = {1, 1.6, 2.5, 4, 6.5, 11, 19}
 D.MODS = {
   {t = "PWR", name = "Power Cell",     base = 0.10, weight = 1.3, fmt = "+%d%% POWER"},
   {t = "ARM", name = "Hull Plating",   base = 0.20, weight = 0.6, fmt = "+%d%% HULL"},
@@ -348,6 +351,20 @@ do
   series("L", "Legend", "Open %s LEGENDARY+ crates", "legendary", {1, 10, 50})
   series("W", "Myth", "Open %s MYTHIC crates", "mythic", {1, 5, 20})
   series("I", "Defender", "Repel %s raids", "raidsRepelled", {1, 25, 250})
+  -- appended later: new entries go at the end so existing saves keep their log indices
+  series("N", "Fusion", "Combine drones %s times", "combines", {1, 5, 25, 100})
+  series("TS", "Uplink", "Fire %s TET strikes", "tetStrikes", {1, 10, 100})
+  series("FI", "Fiesta", "Run %s loot fiestas", "fiestas", {1, 10, 50, 200})
+  series("MP", "Mass Production", "Pull %s drones in loot fiestas", "fiestaPulls", {100, 1000, 10000})
+  series("CR", "Chain Reaction", "Reach a fusion chain of %s", "bestChain", {5, 15, 40})
+  series("BH", "Bounty Hunter", "Claim %s mothership bounties", "bounties", {1, 5, 25})
+  series("RH", "Perfect Rhythm", "Hold the heat sweet spot for 12s, %s times", "rhythms", {1, 10, 50})
+  series("OH", "Meltdown", "Overheat the core %s times", "overheats", {1})
+  series("AL", "Transmuter", "Transmute mythic modules into %s perks", "transmutes", {1, 5, 25})
+  series("HX", "Holographic", "Own %s PRISM drones (all time)", "prismEver", {1, 5, 25})
+  series("HP", "Prismatic", "Open %s PRISMATIC crates", "prismatic", {1, 10})
+  series("FG", "Forgemaster", "Fuse modules to a higher item level %s times", "forged", {1, 25, 250})
+  series("PM", "Ascension", "Promote modules to a higher rarity %s times", "promoted", {1, 10, 50})
 end
 
 return D

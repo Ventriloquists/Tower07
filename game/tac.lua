@@ -18,6 +18,7 @@ for i = 1, 30 do G.killHist[i] = 0 end
 
 local euid = 0
 local spawnT, turretT, huntT, claimT = 6, 0, 0, 0
+local frontierT = 0
 
 -- map cell coords (cell centers at integers) -> virtual pixels
 function G.toPx(x, y) return G.TAC.MX0 + (x - 0.5) * G.TAC.CS, G.TAC.MY0 + (y - 0.5) * G.TAC.CS end
@@ -35,8 +36,8 @@ function G.modDef(t)
 end
 function G.modScore(m) local d = G.modDef(m.t) return m.v / d.base * d.weight end
 function G.modText(m) return string.format(G.modDef(m.t).fmt, math.floor(m.v * 100 + 0.5)) end
-function G.modSalvage(m) return math.ceil(6 * D.RMUL[m.r] * (1 + 0.2 * (m.ilvl - 1))) end
-function G.vaultCap() return 40 + (G.S.pupg.vault and 40 or 0) end
+function G.modSalvage(m) return math.ceil(6 * D.RMUL[m.r] * (1 + 0.2 * (m.ilvl - 1)) * (1 + 0.3 * G.tr("sv_salv"))) end
+function G.vaultCap() return 40 + (G.S.pupg.vault and 40 or 0) + 20 * G.tr("sv_vault") end
 
 function G.salvageModule(k, quiet)
   local S = G.S
@@ -57,6 +58,136 @@ function G.salvageBelow(r)
     FX.play("collect", 1.3)
     FX.toast("SALVAGE COMPLETE", n .. " modules recycled into " .. fmt(total) .. " parts.", C.line)
   else FX.play("err") end
+end
+
+----------------------------------------------------------------------
+-- Module forge (vault modules only)
+--   item level: 3 of the same type + rarity + IL -> 1 at IL+1, keeping the best roll of the three
+--     (+20% per IL step like a natural drop, +~7% from best-of-3 => roughly +25% per fusion early on)
+--   rarity:     10 of one rarity (any type) -> 1 of the next rarity (x1.6 value), IL = floor(average IL)
+--     10:1 is a little stingier than natural drop odds (3-7x per tier) and matches the 10:1 Mythic Altar
+----------------------------------------------------------------------
+G.FORGE_IL, G.FORGE_RARITY = 3, 10
+function G.ilMult(il) return 1 + 0.2 * (il - 1) end
+local function addForged(t, r, il, v)
+  local S = G.S
+  S.modUid = S.modUid + 1
+  local m = {uid = S.modUid, t = t, r = r, ilvl = il, v = v}
+  table.insert(S.modules, m)
+  return m
+end
+local function removeMods(set)
+  local S = G.S
+  for k = #S.modules, 1, -1 do if set[S.modules[k]] then table.remove(S.modules, k) end end
+end
+-- groups of identical type + rarity + IL, best groups first
+function G.forgeGroups()
+  local g, list = {}, {}
+  for _, m in ipairs(G.S.modules) do
+    local key = m.t .. "|" .. m.r .. "|" .. m.ilvl
+    if not g[key] then g[key] = {key = key, t = m.t, r = m.r, il = m.ilvl, mods = {}}; list[#list + 1] = g[key] end
+    table.insert(g[key].mods, m)
+  end
+  table.sort(list, function(a, b)
+    local fa, fb = #a.mods >= G.FORGE_IL, #b.mods >= G.FORGE_IL
+    if fa ~= fb then return fa end
+    if a.r ~= b.r then return a.r > b.r end
+    if a.il ~= b.il then return a.il > b.il end
+    return a.t < b.t
+  end)
+  return list
+end
+-- value of the IL+1 result: the best roll, rescaled to the next item level
+function G.forgeILPreview(grp)
+  local best = 0
+  for _, m in ipairs(grp.mods) do best = math.max(best, m.v) end
+  return best, best / G.ilMult(grp.il) * G.ilMult(grp.il + 1) * (1 + 0.05 * G.tr("sv_forge"))
+end
+function G.forgeIL(key, quiet)
+  local grp
+  for _, x in ipairs(G.forgeGroups()) do if x.key == key then grp = x end end
+  if not grp or #grp.mods < G.FORGE_IL then if not quiet then FX.play("err") end return end
+  table.sort(grp.mods, function(a, b) return a.v > b.v end)
+  -- the best module plus the two weakest: middle rolls stay for later fusions
+  local a, b, c = grp.mods[1], grp.mods[#grp.mods], grp.mods[#grp.mods - 1]
+  local _, nv = G.forgeILPreview({mods = {a}, il = grp.il})
+  removeMods({[a] = true, [b] = true, [c] = true})
+  local m = addForged(grp.t, grp.r, grp.il + 1, nv)
+  G.S.forged = (G.S.forged or 0) + 1
+  if not quiet then
+    FX.play("buy", 1.3)
+    FX.toast("FORGED // " .. grp.t .. " IL" .. m.ilvl, "3 x IL" .. grp.il .. " became " .. G.modText(m) .. " (" .. D.LOOT[m.r].name .. ").", C[D.LOOT[m.r].col])
+  end
+  return m
+end
+function G.forgeILAll()
+  local n = 0
+  for _ = 1, 999 do
+    local done = false
+    for _, grp in ipairs(G.forgeGroups()) do
+      if #grp.mods >= G.FORGE_IL then G.forgeIL(grp.key, true); n = n + 1; done = true; break end
+    end
+    if not done then break end
+  end
+  return n
+end
+
+G.promoteType = {}  -- per rarity: nil = AUTO (most common type among the inputs)
+function G.promoteInputs(r)
+  local list = {}
+  for _, m in ipairs(G.S.modules) do if m.r == r then list[#list + 1] = m end end
+  table.sort(list, function(a, b) return G.modScore(a) < G.modScore(b) end) -- weakest first
+  return list
+end
+function G.promote(r, quiet)
+  local list = G.promoteInputs(r)
+  -- PRISMATIC is drop-only: promotion stops at MYTHIC
+  if r >= D.MYTHIC or #list < G.FORGE_RARITY then if not quiet then FX.play("err") end return end
+  local use, cnt, il = {}, {}, 0
+  for k = 1, G.FORGE_RARITY do
+    local m = list[k]
+    use[m] = true
+    cnt[m.t] = (cnt[m.t] or 0) + 1
+    il = il + m.ilvl
+  end
+  local t = G.promoteType[r]
+  if not t then
+    local bn = 0
+    for _, d in ipairs(D.MODS) do if (cnt[d.t] or 0) > bn then t, bn = d.t, cnt[d.t] end end
+  end
+  il = math.floor(il / G.FORGE_RARITY)
+  removeMods(use)
+  local m = addForged(t, r + 1, il, G.modDef(t).base * D.RMUL[r + 1] * G.ilMult(il) * rnd(0.85, 1.15))
+  G.S.promoted = (G.S.promoted or 0) + 1
+  if not quiet then
+    local c = C[D.LOOT[r + 1].col]
+    FX.play(r + 1 >= 5 and "jackpot" or "unlock", 1.1)
+    if r + 1 >= 5 then FX.flashTo(c, 0.3) end
+    FX.toast("PROMOTED // " .. D.LOOT[r + 1].name .. " " .. t, G.FORGE_RARITY .. " " .. D.LOOT[r].name .. " modules became " .. G.modText(m) .. ".", c)
+  end
+  return m
+end
+function G.promoteAll()
+  local n = 0
+  for r = 1, D.MYTHIC - 1 do
+    while #G.promoteInputs(r) >= G.FORGE_RARITY do G.promote(r, true); n = n + 1 end
+  end
+  return n
+end
+-- everything at once: level fusions first (they keep rarity), then promotions climb the ladder
+function G.forgeEverything()
+  local a = G.forgeILAll()
+  local b = G.promoteAll()
+  a = a + G.forgeILAll()
+  if a + b == 0 then FX.play("err") return end
+  FX.play("jackpot", 1.2)
+  FX.toast("FORGE COMPLETE", a .. " level fusions, " .. b .. " rarity promotions.", C.gold)
+end
+function G.forgeReady()
+  local n = 0
+  for _, grp in ipairs(G.forgeGroups()) do n = n + math.floor(#grp.mods / G.FORGE_IL) end
+  for r = 1, D.MYTHIC - 1 do n = n + math.floor(#G.promoteInputs(r) / G.FORGE_RARITY) end
+  return n
 end
 
 function G.newModule(r)
@@ -104,7 +235,7 @@ function G.unequip(di, k)
   d.hp = math.min(d.hp or 0, G.droneMaxHp(d))
   FX.play("tick")
 end
-function G.autoEquip()
+function G.autoEquip(quiet)
   local S = G.S
   local all = {}
   for _, m in ipairs(S.modules) do all[#all + 1] = m end
@@ -129,6 +260,7 @@ function G.autoEquip()
   for k = i, #all do S.modules[#S.modules + 1] = all[k] end
   G.recalc()
   for _, d in ipairs(S.drones) do d.hp = math.min(d.hp or 0, G.droneMaxHp(d)) end
+  if quiet then return end
   FX.play("unlock", 1.2)
   FX.toast("AUTO-EQUIP COMPLETE", "Best modules assigned to your strongest drones.", C.line)
 end
@@ -137,9 +269,9 @@ end
 -- Loot crates
 ----------------------------------------------------------------------
 function G.rollTier(min)
-  local t = math.min(6, min + (G.eventActive("INVASION") and 1 or 0))
-  local luck = 1 + G.luck
-  while t < 6 and love.math.random() < D.LOOT_UP[t + 1] * luck do t = t + 1 end
+  local t = math.min(#LOOT, min + (G.eventActive("INVASION") and 1 or 0) + (G.weather.def.id == "FOG" and 1 or 0))
+  local luck = (1 + G.luck) * (1 + 0.1 * G.tr("sv_tier"))
+  while t < #LOOT and love.math.random() < D.LOOT_UP[t + 1] * luck do t = t + 1 end
   return t
 end
 
@@ -170,12 +302,13 @@ function G.openCrate(k, quiet, sx, sy)
   for _, d in ipairs(S.drones) do if G.hasTrait(d, "SALVAGER") then sal = 1.5 break end end
   S.crates = S.crates + 1
   if c.r >= 5 then S.legendary = S.legendary + 1 end
-  if c.r == 6 then S.mythic = S.mythic + 1 end
+  if c.r >= 6 then S.mythic = S.mythic + 1 end
+  if c.r >= 7 then S.prismatic = (S.prismatic or 0) + 1 end
   local lines = {}
   local e = math.max(50, G.baseCps * L.secs)
   G.gain(e)
   lines[#lines + 1] = "+" .. fmt(e) .. " ENERGY"
-  local pa = math.floor(L.parts * F * sal * rnd(0.8, 1.2))
+  local pa = math.floor(L.parts * F * sal * rnd(0.8, 1.2) * (1 + 0.2 * G.tr("sv_parts")) * 1.3 ^ G.tr("od_salv"))
   local hy = math.floor(L.hydro * F * sal * rnd(0.8, 1.2))
   S.parts, S.hydro = S.parts + pa, S.hydro + hy
   lines[#lines + 1] = "+" .. fmt(pa) .. " PARTS  +" .. fmt(hy) .. " H2O"
@@ -195,18 +328,29 @@ function G.openCrate(k, quiet, sx, sy)
     S.dm, S.dmTotal = S.dm + cd, S.dmTotal + cd
     lines[#lines + 1] = "+" .. fmt(cd) .. " CORE DATA"
   end
+  -- PRISM drones only ever come out of crates (and only the best ones)
+  local pc = ({[5] = 0.002, [6] = 0.02, [7] = 0.25})[c.r]
+  local prismDrone
+  if pc and love.math.random() < pc then
+    prismDrone = G.makeDrone(#RAR)
+    G.addDrone(prismDrone)
+    lines[#lines + 1] = "PRISM DRONE " .. G.droneLabel(prismDrone)
+  end
   G.addXP(5 * c.r)
   G.recalc()
   local col = C[L.col]
   G.addFeed(L.name .. " // " .. (bestMod and lines[#lines] or lines[2]), col)
   local px, py = G.toPx(c.x, c.y)
   if sx then px, py = sx, sy end
-  if quiet or (not sx and not onMap()) then return end
+  if quiet or (not sx and not onMap()) then
+    if c.r >= 7 or prismDrone then FX.prismEvent(prismDrone and "PRISM" or L.name, 640, 360) end
+    return
+  end
   FX.burst(px, py, 12 + c.r * 14, col, 160 + c.r * 60, 2)
   for i, l in ipairs(lines) do
     FX.floater(px, py - 16 - (i - 1) * 16, l, i == 1 and col or C.white, i == 1 and H.fonts.s or H.fonts.xs, 1.6 + c.r * 0.2)
   end
-  if c.r >= 3 then FX.ray(px, py, col, 0.8 + c.r * 0.3, 80 + c.r * 50) end
+  if c.r >= 3 and c.r < 7 then FX.ray(px, py, col, 0.8 + c.r * 0.3, 80 + c.r * 50 + (c.r >= 5 and 80 or 0)) end
   if c.r >= 4 then
     FX.flashTo(col, 0.15 * (c.r - 3))
     FX.shake = math.max(FX.shake, (c.r - 3) * 7)
@@ -214,7 +358,9 @@ function G.openCrate(k, quiet, sx, sy)
   end
   if c.r >= 5 then
     G.rankBanner = {t = 0, title = L.name .. " CACHE", text = table.concat(lines, "   //   "), c = col}
-    FX.play(c.r == 6 and "mythic" or "jackpot")
+    if c.r >= 7 or prismDrone then FX.prismEvent(prismDrone and "PRISM" or L.name, px, py)
+    elseif c.r == 6 then FX.slam(L.name .. "!", px, py, col); FX.lootSound(2)
+    else FX.lootSound(1) end
   else
     FX.play("crate", 0.8 + c.r * 0.12)
   end
@@ -233,7 +379,20 @@ end
 ----------------------------------------------------------------------
 -- Enemies
 ----------------------------------------------------------------------
-function G.enemyCap() return math.min(16, 4 + G.S.zone) * (G.eventActive("INVASION") and 2 or 1) end
+-- more territory = a bigger scav presence
+function G.landFrac() return G.landCount > 0 and G.claimed / G.landCount or 0 end
+function G.enemyCap()
+  return math.floor(math.min(16, 4 + G.S.zone) * (1 + 1.5 * G.landFrac())) * (G.eventActive("INVASION") and 2 or 1)
+end
+-- SCAV ALERT: claiming sectors and killing scavs raise it; at 100% the mothership arrives.
+-- Claims alone give ~45% at 60% land, kills supply the rest, so a strong fleet gets there in minutes.
+G.KILL_ALERT = {SCOUT = 0.006, RAIDER = 0.01, BRUTE = 0.02, ELITE = 0.04}
+function G.raiseAlert(v)
+  local S = G.S
+  if S.bossDown or G.boss() then return end
+  S.alert = math.min(1, math.max(0, S.alert or 0) + v * (1 + 0.2 * G.tr("map_alert")))
+end
+function G.claimAlert() return 0.45 / math.max(20, 0.6 * G.landCount) end
 function G.findEnemy(uid)
   for _, e in ipairs(G.enemies) do if e.uid == uid then return e end end
 end
@@ -275,8 +434,9 @@ function G.spawnEnemy(kind)
     raid = 0, flash = 0, wob = rnd(0, 6)}
   table.insert(G.enemies, e)
   if def.boss then
-    G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it to clear " .. D.zoneName(S.zone) .. ". Guaranteed EPIC+ loot.", c = C.red}
-    FX.toast("!! MOTHERSHIP DETECTED !!", "Massive scav carrier entering the sector.", C.red)
+    e.bounty = G.BOUNTY_TIME + 60 * G.tr("map_bounty")
+    G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it within " .. H.fmtTime(G.BOUNTY_TIME) .. " for the BOUNTY: 2 LEGENDARY crates + 3 fab tokens.", c = C.red}
+    FX.toast("!! MOTHERSHIP DETECTED !!", "Bounty clock is running. Check the MAP.", C.red)
     FX.play("raid")
     FX.shake = math.max(FX.shake, 10)
   end
@@ -285,6 +445,7 @@ end
 
 function G.damageEnemy(e, dmg)
   if e.dead then return end
+  if e.def.boss then dmg = dmg * (1 + 0.5 * G.tr("map_boss")) end
   e.hp = e.hp - dmg
   e.flash = 1
   if e.hp <= 0 then G.killEnemy(e) end
@@ -296,10 +457,13 @@ function G.killEnemy(e)
   for k, x in ipairs(G.enemies) do if x == e then table.remove(G.enemies, k) break end end
   S.kills = S.kills + 1
   G.killAcc = G.killAcc + 1
+  if not e.def.boss then G.raiseAlert(G.KILL_ALERT[e.def.id] or 0.01) end
+  S.tetCharge = math.min(1, (S.tetCharge or 0) + (e.def.boss and 0.3 or 0.04))
   if e.raid > 0 then S.raidsRepelled = S.raidsRepelled + 1 end
   G.addXP(e.def.xp)
   local n = e.def.crates
   if love.math.random() < G.luck * 0.5 then n = n + 1 end
+  if love.math.random() < 0.1 * G.tr("sv_crate") then n = n + 1 end
   for _ = 1, n do G.dropCrate(e.x + rnd(-0.4, 0.4), e.y + rnd(-0.4, 0.4), G.rollTier(e.def.tier)) end
   local px, py = G.toPx(e.x, e.y)
   local big = e.def.boss and 3 or (e.def.tier >= 3 and 2 or 1)
@@ -313,6 +477,12 @@ function G.killEnemy(e)
   if e.def.boss then
     S.bosses = S.bosses + 1
     S.bossDown = true
+    if (e.bounty or 0) > 0 then
+      S.bounties = (S.bounties or 0) + 1
+      S.tokens = S.tokens + 3
+      for _ = 1, 2 do G.dropCrate(e.x + rnd(-0.5, 0.5), e.y + rnd(-0.5, 0.5), 5) end
+      FX.toast("BOUNTY CLAIMED", "Mothership down with " .. H.fmtTime(e.bounty) .. " to spare: 2 LEGENDARY crates + 3 fab tokens.", C.gold)
+    end
     if S.zone > S.zoneBest then S.zoneBest = S.zone end
     G.recalc()
     FX.flashTo(C.orange, 0.8)
@@ -328,7 +498,7 @@ function G.strike(e)
   local now = G.time
   if now - G.lastStrike < 0.6 then G.strikeCombo = G.strikeCombo + 1 else G.strikeCombo = 1 end
   G.lastStrike = now
-  local dmg = (math.max(1, G.fleetPower * 0.25) + 2 * G.zoneF()) * (1 + math.min(G.strikeCombo, 40) * 0.05)
+  local dmg = (math.max(1, G.fleetPower * 0.25) + 2 * G.zoneF()) * (1 + math.min(G.strikeCombo, 40) * 0.05) * (1 + 0.5 * G.tr("map_strike")) * 1.2 ^ G.tr("od_map")
   local crit = love.math.random() < G.critChance
   if crit then dmg = dmg * 5 end
   local px, py = G.toPx(e.x, e.y)
@@ -394,9 +564,116 @@ local function moveToward(o, tx, ty, speed, dt)
   return dist - step
 end
 
+----------------------------------------------------------------------
+-- Radiation sectors: deterministic per map seed. Claims take 2x longer but drop an extra crate.
+----------------------------------------------------------------------
+function G.isRadiation(i)
+  if not G.land[i] or i == G.TIDX or G.dist(i) < 3.5 then return false end
+  local x, y = G.xy(i)
+  local sd = G.S.map.seed
+  return love.math.noise(x * 0.31 + sd * 2.1, y * 0.31 - sd * 1.7) > 0.86
+end
+
+----------------------------------------------------------------------
+-- Weather: cycles every few minutes and changes how the fleet behaves
+----------------------------------------------------------------------
+G.WEATHER = {
+  {id = "CLEAR",    desc = "Calm skies. Normal operations.",                       speed = 1.0, mission = 1.0, strike = 1.0},
+  {id = "TAILWIND", desc = "Drone speed +30%, claim missions 25% faster.",         speed = 1.3, mission = 0.75, strike = 1.0},
+  {id = "FOG",      desc = "Scavs outside your territory are hidden. Crates +1 rarity.", speed = 1.0, mission = 1.0, strike = 1.0},
+  {id = "STORM",    desc = "Drone speed -25%. Orbital strikes deal x2 (lightning).", speed = 0.75, mission = 1.2, strike = 2.0},
+}
+G.weather = {def = G.WEATHER[1], t = 120, dur = 120, wind = 0, windSpeed = 8}
+local function nextWeather()
+  local w = G.WEATHER[love.math.random(#G.WEATHER)]
+  local dur = rnd(100, 200)
+  G.weather = {def = w, t = dur, dur = dur, wind = rnd(0, math.pi * 2),
+    windSpeed = w.id == "STORM" and rnd(40, 70) or (w.id == "TAILWIND" and rnd(25, 40) or rnd(4, 15))}
+  if G.tab == "map" then FX.play("signal", 0.7, 0.4) end
+  G.addFeed("WEATHER // " .. w.id, w.id == "STORM" and C.red or C.line)
+end
+function G.weatherSpeed() return G.weather.def.speed end
+function G.weatherMission() return G.weather.def.mission end
+function G.fogged(e)
+  if G.weather.def.id ~= "FOG" then return false end
+  -- visible only within 1 cell of your territory
+  local cx, cy = math.floor(e.x + 0.5), math.floor(e.y + 0.5)
+  for dy = -1, 1 do
+    for dx = -1, 1 do
+      local nx, ny = cx + dx, cy + dy
+      if nx >= 1 and nx <= G.MW and ny >= 1 and ny <= G.MH and G.S.map.cells[G.idx(nx, ny)] == 2 then return false end
+    end
+  end
+  return true
+end
+
+----------------------------------------------------------------------
+-- TET uplink: charges over time and from kills; fires a satellite strike on an area
+----------------------------------------------------------------------
+G.tetBeam = nil
+function G.tetReady() return (G.S.tetCharge or 0) >= 1 end
+function G.tetTarget()
+  -- selected scav, else the biggest threat (boss > raider on a sector > highest hp)
+  local sel = G.tacSel and G.tacSel.kind == "enemy" and G.findEnemy(G.tacSel.uid)
+  if sel then return sel end
+  local best, bs
+  for _, e in ipairs(G.enemies) do
+    local s = (e.def.boss and 1e9 or 0) + e.raid * 1e6 + e.hp
+    if not bs or s > bs then best, bs = e, s end
+  end
+  return best
+end
+function G.tetStrike()
+  local S = G.S
+  local t = G.tetTarget()
+  if not G.tetReady() or not t then FX.play("err") return end
+  S.tetCharge = 0
+  S.tetStrikes = (S.tetStrikes or 0) + 1
+  local tx, ty = t.x, t.y
+  local hit = 0
+  for k = #G.enemies, 1, -1 do
+    local e = G.enemies[k]
+    if (e.x - tx) ^ 2 + (e.y - ty) ^ 2 <= 3 * 3 then
+      local dmg = e.def.boss and e.max * 0.15 or math.max(e.max * 0.75, G.fleetPower * 4)
+      G.damageEnemy(e, dmg * G.weather.def.strike)
+      hit = hit + 1
+    end
+  end
+  local px, py = G.toPx(tx, ty)
+  G.tetBeam = {x = px, y = py, t = 0}
+  FX.flashTo(C.white, 0.5)
+  FX.shake = math.max(FX.shake, 18)
+  FX.burst(px, py, 120, C.white, 500, 3)
+  FX.burst(px, py, 80, C.line, 300, 2)
+  for k = 1, 3 do FX.wave(px, py, 10 * k, C.white, 260 + k * 80, 0.9) end
+  FX.play("boom", 0.6, 1)
+  FX.play("surge", 1.4, 0.7)
+  G.addFeed("TET STRIKE // " .. hit .. " CONTACTS HIT", C.white)
+end
+
+function G.mapExtraUpdate(dt)
+  for _, e in ipairs(G.enemies) do
+    if e.bounty and e.bounty > 0 then
+      e.bounty = e.bounty - dt
+      if e.bounty <= 0 then FX.toast("BOUNTY EXPIRED", "The mothership still has to go down to clear the zone.", C.dim) end
+    end
+  end
+  local S = G.S
+  local w = G.weather
+  w.t = w.t - dt
+  w.wind = w.wind + dt * 0.05
+  if w.t <= 0 then nextWeather() end
+  S.tetCharge = math.min(1, (S.tetCharge or 0) + dt / 150 * (1 + 0.25 * G.tr("map_tet")))
+  if G.tetBeam then
+    G.tetBeam.t = G.tetBeam.t + dt
+    if G.tetBeam.t > 0.8 then G.tetBeam = nil end
+  end
+end
+
 function G.tacUpdate(dt)
   local S = G.S
   if G.modal or not G.unlocked("map") then return end
+  G.mapExtraUpdate(dt)
   local now = G.now()
 
   -- kill history (10 s buckets)
@@ -411,10 +688,25 @@ function G.tacUpdate(dt)
   -- spawning
   spawnT = spawnT - dt
   if spawnT <= 0 then
-    spawnT = math.max(3, 14 - S.zone * 0.5) * rnd(0.7, 1.3) / (G.eventActive("INVASION") and 3 or 1)
-    if #G.enemies < G.enemyCap() then G.spawnEnemy() end
+    local frac = G.landFrac()
+    spawnT = math.max(2, 14 - S.zone * 0.5) * rnd(0.7, 1.3) / (1 + 3 * frac) / (1 + 0.15 * G.tr("map_spawn")) / (G.eventActive("INVASION") and 3 or 1)
+    local group = 1 + math.floor(frac * 3 + love.math.random() * 0.8)
+    for _ = 1, group do if #G.enemies < G.enemyCap() then G.spawnEnemy() end end
   end
-  if not S.bossDown and G.landCount > 0 and G.claimed / G.landCount >= 0.6 then
+  -- safety net: if nothing is left to claim, the mothership comes anyway (a zone can never dead-end)
+  frontierT = frontierT - dt
+  if frontierT <= 0 then
+    frontierT = 3
+    G.noFrontier = false
+    if not S.bossDown and G.claimed > 0 then
+      G.noFrontier = true
+      for i = 1, G.MW * G.MH do
+        if S.map.cells[i] == 3 or G.claimable(i) then G.noFrontier = false break end
+      end
+    end
+  end
+  if (S.alert or 0) < 0 then S.alert = math.min(0.9, G.landFrac()) end -- saves from before the alert meter
+  if not S.bossDown and G.landCount > 0 and ((S.alert or 0) >= 1 or G.noFrontier) then
     local alive = false
     for _, e in ipairs(G.enemies) do if e.def.boss then alive = true break end end
     if not alive then G.spawnEnemy("MOTHERSHIP") end
@@ -465,7 +757,7 @@ function G.tacUpdate(dt)
   end
   if turretT <= 0 then
     turretT = 0.6
-    local range = S.pupg.turret and 3.5 or 2.5
+    local range = (S.pupg.turret and 3.5 or 2.5) + 0.5 * G.tr("map_turret")
     local best, bd
     for _, e in ipairs(G.enemies) do
       local d = math.sqrt((e.x - G.TX) ^ 2 + (e.y - G.TY) ^ 2)
@@ -473,7 +765,7 @@ function G.tacUpdate(dt)
     end
     if best then
       G.turretBeam = {x = best.x, y = best.y, t = 0.15}
-      G.damageEnemy(best, 3 * G.zoneF() * (S.pupg.turret and 5 or 1) * 0.6 * (1 + 0.05 * S.rank))
+      G.damageEnemy(best, 3 * G.zoneF() * (S.pupg.turret and 5 or 1) * (1 + 0.5 * G.tr("map_turret")) * 1.2 ^ G.tr("od_map") * 0.6 * (1 + 0.05 * S.rank))
       if onMap() then FX.play("laser", 0.8, 0.5) end
     end
   end
@@ -542,7 +834,13 @@ function G.tacUpdate(dt)
   claimT = claimT - dt
   if claimT <= 0 then
     claimT = 2
-    if S.autoClaim and #G.enemies < 3 then G.dispatchAll(true) end
+    if S.autoClaim then
+      -- keep enough drones fighting: up to 40% of the fleet (one per scav), counting those already hunting
+      local hunters = 0
+      for _, d in ipairs(S.drones) do if d.hunt then hunters = hunters + 1 end end
+      local want = math.min(#G.enemies, math.floor(#S.drones * 0.4))
+      G.dispatchAll(true, math.max(0, want - hunters))
+    end
   end
   huntT = huntT - dt
   if huntT <= 0 then
@@ -572,6 +870,70 @@ function G.tacUpdate(dt)
     local c = S.crateList[k]
     c.t = (c.t or 0) + dt
     if S.pupg.tractor and c.t >= 8 then G.openCrate(k, c.r < 4) end
+  end
+end
+
+----------------------------------------------------------------------
+-- Mothership + fleet autopilot (auto-loadout, auto-upgrade, auto-salvage)
+----------------------------------------------------------------------
+G.BOUNTY_TIME = 300
+function G.boss()
+  for _, e in ipairs(G.enemies) do if e.def.boss then return e end end
+end
+
+G.SALVAGE_STEPS = {0, 1, 2, 3, 4}
+function G.cycleAutoSalvage()
+  local S = G.S
+  local cur = 1
+  for k, v in ipairs(G.SALVAGE_STEPS) do if v == (S.autoSalvage or 0) then cur = k end end
+  S.autoSalvage = G.SALVAGE_STEPS[cur % #G.SALVAGE_STEPS + 1]
+  FX.play("tick", 1.2)
+end
+function G.autoSalvageLabel()
+  local v = G.S.autoSalvage or 0
+  return v == 0 and "OFF" or ("<= " .. LOOT[v].name)
+end
+
+-- the drone whose next upgrade is cheapest, strongest drones first on ties
+local function upgradeTarget()
+  local S = G.S
+  local best, bk, bc
+  for k, d in ipairs(S.drones) do
+    local c = G.droneUpCost(d)
+    if not bc or c < bc or (c == bc and G.dronePower(d) > G.dronePower(best)) then best, bk, bc = d, k, c end
+  end
+  return best, bk, bc
+end
+
+local pilotT = 0
+function G.autopilotUpdate(dt)
+  local S = G.S
+  pilotT = pilotT + dt
+  if pilotT < 1 then return end
+  pilotT = 0
+  if G.modal or G.drag then return end
+  -- upgrades: spend parts on the cheapest upgrade, a few per second
+  if S.autoUpgrade then
+    local n = 0
+    while n < 5 do
+      local d, _, c = upgradeTarget()
+      if not d or S.parts < c then break end
+      S.parts = S.parts - c
+      d.lvl = d.lvl + 1
+      d.hp = G.droneMaxHp(d)
+      n = n + 1
+    end
+    if n > 0 then G.addXP(8 * n); G.recalc() end
+  end
+  -- modules: best modules always sit on the strongest drones
+  if S.autoLoadout and G.unlocked("vault") and #S.drones > 0 then G.autoEquip(true) end
+  -- salvage what is left in the vault at or below the chosen rarity
+  if (S.autoSalvage or 0) > 0 then
+    local total = 0
+    for k = #S.modules, 1, -1 do
+      if S.modules[k].r <= S.autoSalvage then total = total + G.salvageModule(k, true) end
+    end
+    if total > 0 then G.salvaged = (G.salvaged or 0) + total end
   end
 end
 

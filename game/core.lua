@@ -58,9 +58,11 @@ function G.newState()
     daily = {last = "", streak = 0}, bestStreak = 0, jackpots = 0, archive = 0,
     zone = 1, zoneBest = 0, bossDown = false, kills = 0, bosses = 0, crates = 0, legendary = 0, mythic = 0,
     raidsRepelled = 0, modules = {}, crateList = {}, modUid = 0,
-    autoTech = false, autoUnits = false, autoRigs = false, autoHunt = true, autoClaim = false,
+    autoTech = false, autoUnits = false, autoRigs = false, autoRigUp = false, autoHunt = true, autoClaim = false,
+    combines = 0, tetCharge = 0, tetStrikes = 0, autoFuse = 0, fiestas = 0, fiestaPulls = 0, bestChain = 0, alert = -1,
+    autoLoadout = true, autoUpgrade = false, autoSalvage = 0, bounties = 0, rhythms = 0, overheats = 0, mythicRolls = 0, transmutes = 0, forged = 0, promoted = 0,
     perks = {}, perkPoints = 0, sxp = 0, passTier = 0, passClaimed = 0, achClaim = {}, logClaims = 0,
-    rarityEver = {0, 0, 0, 0, 0}, doubled = 0}
+    rarityEver = {0, 0, 0, 0, 0, 0}, prismEver = 0, prismatic = 0, doubled = 0}
   for i = 1, #GENS do s.gens[i] = 0; s.ubt[i] = 0 end
   return s
 end
@@ -91,6 +93,11 @@ function G.zoneF() return 1.6 ^ (S.zone - 1) end
 function G.baseThreat(i) return math.max(1, math.floor(G.dist(i) * 0.9)) end
 function G.threat(i) return G.baseThreat(i) * G.zoneF() end
 
+-- terrain height field (continuous, in cell units); land is where it is above 0.46
+function G.terrainH(x, y)
+  local sd = S.map.seed
+  return love.math.noise(x * 0.14 + sd, y * 0.14 + sd * 0.7) * 0.7 + love.math.noise(x * 0.4 + sd * 1.3, y * 0.4 - sd) * 0.3
+end
 function G.buildTerrain()
   local sd = S.map.seed
   G.land, G.landCount = {}, 0
@@ -101,10 +108,74 @@ function G.buildTerrain()
       local d = math.sqrt((x - G.TX) ^ 2 + (y - G.TY) ^ 2)
       local land = n > 0.46 or d < 1.6
       G.land[G.idx(x, y)] = land
-      if land then G.landCount = G.landCount + 1 end
     end
   end
+  -- every island gets a land bridge to the tower's territory, so all land can be claimed
+  -- (otherwise unreachable land counts against the 60% mothership threshold and the zone soft-locks)
+  for _ = 1, 50 do
+    local seen = G.reachableLand()
+    local bi, bj, bd
+    for i = 1, G.MW * G.MH do
+      if G.land[i] and not seen[i] then
+        local x, y = G.xy(i)
+        for j in pairs(seen) do
+          local x2, y2 = G.xy(j)
+          local d = (x - x2) ^ 2 + (y - y2) ^ 2
+          if not bd or d < bd then bi, bj, bd = i, j, d end
+        end
+      end
+    end
+    if not bi then break end
+    local x, y = G.xy(bj)
+    local tx, ty = G.xy(bi)
+    while x ~= tx or y ~= ty do
+      x = x + (tx > x and 1 or (tx < x and -1 or 0))
+      y = y + (ty > y and 1 or (ty < y and -1 or 0))
+      G.land[G.idx(x, y)] = true
+    end
+  end
+  for i = 1, G.MW * G.MH do if G.land[i] then G.landCount = G.landCount + 1 end end
   G.landCount = G.landCount - 1 -- tower
+end
+
+-- land cells connected to the tower (8-neighbour flood fill, the same adjacency claims use)
+function G.reachableLand()
+  local seen, stack, n = {[G.TIDX] = true}, {G.TIDX}, 0
+  while #stack > 0 do
+    local i = table.remove(stack)
+    n = n + 1
+    local x, y = G.xy(i)
+    for dy = -1, 1 do
+      for dx = -1, 1 do
+        local nx, ny = x + dx, y + dy
+        if nx >= 1 and nx <= G.MW and ny >= 1 and ny <= G.MH then
+          local j = G.idx(nx, ny)
+          if G.land[j] and not seen[j] then seen[j] = true; stack[#stack + 1] = j end
+        end
+      end
+    end
+  end
+  return seen, n
+end
+
+-- dev: --mapdiag writes why the map might be stuck
+function G.mapReport()
+  local _, reach = G.reachableLand()
+  local best = 0
+  for _, d in ipairs(S.drones) do best = math.max(best, G.claimPower(d)) end
+  local claimable, minT, ok = 0, math.huge, 0
+  for i = 1, G.MW * G.MH do
+    if G.claimable(i) then
+      claimable = claimable + 1
+      minT = math.min(minT, G.threat(i))
+      if G.threat(i) <= best then ok = ok + 1 end
+    end
+  end
+  local boss = G.boss and G.boss()
+  return string.format("zone=%d land=%d reachable=%d claimed=%d (%.0f%% of land) alert=%.0f%% bossDown=%s boss=%s\n" ..
+    "claimable=%d affordable=%d minThreat=%s bestClaimPower=%s drones=%d enemies=%d",
+    S.zone, G.landCount, reach - 1, G.claimed, G.landCount > 0 and G.claimed / G.landCount * 100 or 0, (S.alert or 0) * 100, tostring(S.bossDown),
+    boss and string.format("hp %.3g/%.3g", boss.hp, boss.max) or "none", claimable, ok, fmt(minT), fmt(best), #S.drones, #G.enemies)
 end
 
 function G.revealAround(cx, cy, r)
@@ -122,9 +193,10 @@ function G.newMap()
   S.map = {seed = love.math.random() * 1000, cells = {}}
   for i = 1, G.MW * G.MH do S.map.cells[i] = 0 end
   G.buildTerrain()
-  G.revealAround(G.TX, G.TY, S.pupg.carto and 4 or 2)
+  G.revealAround(G.TX, G.TY, (S.pupg.carto and 4 or 2) + G.tr("map_scan"))
   S.map.cells[G.TIDX] = 2
   S.bossDown = false
+  S.alert = 0
   G.enemies = {}
   for _, d in ipairs(S.drones) do
     d.mission, d.hunt = nil, nil
@@ -142,8 +214,9 @@ end
 
 function G.adjClaimed(i)
   local x, y = G.xy(i)
-  for dy = -1, 1 do
-    for dx = -1, 1 do
+  local rg = 1 + G.tr("map_range")
+  for dy = -rg, rg do
+    for dx = -rg, rg do
       local nx, ny = x + dx, y + dy
       if (dx ~= 0 or dy ~= 0) and nx >= 1 and nx <= G.MW and ny >= 1 and ny <= G.MH
         and S.map.cells[G.idx(nx, ny)] == 2 then return true end
@@ -166,25 +239,25 @@ function G.modSum(d, t)
   return s
 end
 function G.dronePower(d)
-  return RAR[d.r].power * 1.6 ^ (d.mk - 1) * (1 + 0.5 * (d.lvl - 1)) * (1 + G.modSum(d, "PWR")) * (1 + 0.1 * G.perk("HUNTER"))
+  return RAR[d.r].power * 1.6 ^ (d.mk - 1) * (1 + 0.5 * (d.lvl - 1)) * (1 + G.modSum(d, "PWR")) * (1 + 0.1 * G.perk("HUNTER")) * (1 + 0.2 * G.tr("fl_power")) * 1.2 ^ G.tr("od_fleet")
 end
 function G.droneBonus(d)
-  local b = RAR[d.r].bonus * (1 + 0.5 * (d.lvl - 1)) * (1 + G.modSum(d, "YLD"))
+  local b = RAR[d.r].bonus * (1 + 0.5 * (d.lvl - 1)) * (1 + G.modSum(d, "YLD")) * (1 + 0.15 * G.tr("fl_yield"))
   if G.hasTrait(d, "HARVESTER") then b = b * 2 end
   return b
 end
 function G.droneMaxHp(d)
-  local h = 10 * G.dronePower(d) * (1 + G.modSum(d, "ARM"))
+  local h = 10 * G.dronePower(d) * (1 + G.modSum(d, "ARM")) * (1 + 0.25 * G.tr("fl_hull"))
   if G.hasTrait(d, "JUGGERNAUT") then h = h * 2 end
   return h
 end
 function G.droneSpeed(d)
-  local s = 1.5 * (1 + G.modSum(d, "SPD"))
+  local s = 1.5 * (1 + G.modSum(d, "SPD")) * (1 + 0.1 * G.tr("fl_speed"))
   if G.hasTrait(d, "SPRINTER") then s = s * 1.6 end
-  return s
+  return s * (G.weatherSpeed and G.weatherSpeed() or 1)
 end
 function G.droneDps(d)
-  local p = G.dronePower(d)
+  local p = G.dronePower(d) * (1 + 0.2 * G.tr("fl_dps")) * 1.2 ^ G.tr("od_map")
   if G.hasTrait(d, "HUNTER") then p = p * 1.6 end
   return p
 end
@@ -202,11 +275,12 @@ function G.droneStatus(d)
 end
 function G.droneReady(d) return not d.mission and not d.hunt and not G.isDown(d) end
 function G.droneUpCost(d) return math.ceil(3 * RAR[d.r].upk * d.lvl ^ 1.6) end
-function G.bayCap() return 15 + (S.pupg.bay and 6 or 0) end
-function G.fabCost()
-  local m = math.max(0.4, 1 - 0.05 * G.perk("FABDISC")) * (G.eventActive("FRENZY") and 0.5 or 1)
-  return math.max(1, math.floor(20 * 1.07 ^ math.min(S.fabsTotal, 120) * m))
+function G.bayCap() return 15 + (S.pupg.bay and 6 or 0) + 2 * G.tr("fl_bay") end
+function G.fabCostAt(total)
+  local m = math.max(0.4, 1 - 0.05 * G.perk("FABDISC")) * (1 - 0.05 * G.tr("fl_fab")) * (G.eventActive("FRENZY") and 0.5 or 1)
+  return math.max(1, math.floor(20 * 1.07 ^ math.min(total, 120) * m))
 end
+function G.fabCost() return G.fabCostAt(S.fabsTotal) end
 
 function G.normalizeDrone(d)
   d.lvl = d.lvl or 1
@@ -215,7 +289,135 @@ function G.normalizeDrone(d)
   if type(d.traits) ~= "table" or #d.traits == 0 then d.traits = {D.TRAITS[love.math.random(#D.TRAITS)].id} end
   d.px, d.py = d.px or G.TX, d.py or G.TY
   d.hunt = nil
+  if type(d.name) ~= "string" then d.name = G.nameFor(d.r) end -- older saves had no callsigns
   return d
+end
+
+----------------------------------------------------------------------
+-- Combine: 3 drones of the same rarity -> 1 drone of the next rarity
+----------------------------------------------------------------------
+function G.findDrone(id)
+  for k, d in ipairs(S.drones) do if d.id == id then return d, k end end
+end
+-- PRISM is drop-only: fusion tops out at OMEGA
+G.FUSE_TOP = 5
+function G.canCombine(d) return d and d.r < G.FUSE_TOP and not d.mission and not G.isDown(d) end
+function G.combineEligible(r, exclude)
+  local list = {}
+  for _, d in ipairs(S.drones) do
+    if d.r == r and G.canCombine(d) and not (exclude and exclude[d.id]) then list[#list + 1] = d end
+  end
+  table.sort(list, function(a, b) return G.dronePower(a) < G.dronePower(b) end)
+  return list
+end
+-- the result keeps the best MK and level, the first drone's callsign, and inherits traits from the inputs
+function G.combinePreview(ds)
+  local r = ds[1].r + 1
+  local mk, lvl = 1, 1
+  for _, d in ipairs(ds) do mk = math.max(mk, d.mk); lvl = math.max(lvl, d.lvl) end
+  return {r = r, mk = mk, lvl = lvl, slots = RAR[r].slots, traits = RAR[r].traits}
+end
+function G.combineDrones(ids)
+  local ds = {}
+  for _, id in ipairs(ids) do
+    local d = G.findDrone(id)
+    if not G.canCombine(d) then return nil, "All three drones must be idle and below the top rarity." end
+    ds[#ds + 1] = d
+  end
+  if #ds ~= 3 then return nil, "Select three drones." end
+  if ds[1].r ~= ds[2].r or ds[1].r ~= ds[3].r then return nil, "Drones must share the same rarity." end
+  for _, d in ipairs(ds) do
+    local _, k = G.findDrone(d.id)
+    table.remove(S.drones, k)
+  end
+  local nd = G.fuseResult(ds)
+  G.addDrone(nd)
+  S.combines = (S.combines or 0) + 1
+  G.hangarSel = nd.id
+  G.addXP(40 * nd.r)
+  return nd
+end
+-- builds the fused drone from three inputs without touching the fleet; their modules go to the vault
+function G.fuseResult(ds)
+  local p = G.combinePreview(ds)
+  -- inherit traits: pool of all input traits, plus fresh rolls if the pool is short
+  local pool, seen = {}, {}
+  for _, d in ipairs(ds) do
+    for _, t in ipairs(d.traits) do if not seen[t] then seen[t] = true; pool[#pool + 1] = t end end
+  end
+  local traits = {}
+  while #traits < p.traits and #pool > 0 do traits[#traits + 1] = table.remove(pool, love.math.random(#pool)) end
+  while #traits < p.traits do
+    local t = D.TRAITS[love.math.random(#D.TRAITS)].id
+    local dup = false
+    for _, x in ipairs(traits) do if x == t then dup = true end end
+    if not dup then traits[#traits + 1] = t end
+  end
+  for _, d in ipairs(ds) do
+    for _, m in ipairs(d.mods) do table.insert(S.modules, m) end
+  end
+  local nd = {id = ds[1].id, r = p.r, lvl = p.lvl + G.tr("fl_fuse"), mk = p.mk, mods = {}, traits = traits,
+    name = ds[1].name, px = G.TX, py = G.TY}
+  if p.r >= 4 and not nd.name:find(" ") then nd.name = G.grandName(nd.name) end
+  return nd
+end
+
+-- auto-fuse: S.autoFuse is the highest rarity it may create (0 = off). Locked drones are never touched.
+G.AUTOFUSE = {0, 3, 4, 5}
+function G.autoFuseOk(d) return G.canCombine(d) and not d.lock and d.r + 1 <= (S.autoFuse or 0) end
+function G.cycleAutoFuse()
+  local cur = 1
+  for k, v in ipairs(G.AUTOFUSE) do if v == (S.autoFuse or 0) then cur = k end end
+  S.autoFuse = G.AUTOFUSE[cur % #G.AUTOFUSE + 1]
+  FX.play("tick", 1.2)
+end
+function G.autoFuseLabel()
+  local v = S.autoFuse or 0
+  return v == 0 and "OFF" or ("UP TO " .. RAR[v].name)
+end
+-- fuses groups of 3 inside a list of drones, weakest first. Returns the merge log; `list` is updated in place.
+-- onFuse(inputs, result) lets the caller remove inputs from wherever they live.
+function G.fuseGroups(list, cap, onFuse)
+  local log, chain = {}, 0
+  for r = 1, #RAR - 1 do
+    if r + 1 > cap then break end
+    while true do
+      local grp = {}
+      for _, d in ipairs(list) do if d.r == r then grp[#grp + 1] = d end end
+      if #grp < 3 then break end
+      table.sort(grp, function(a, b) return G.dronePower(a) < G.dronePower(b) end)
+      local ds = {grp[3], grp[2], grp[1]} -- strongest of the three gives its callsign
+      local nd = G.fuseResult(ds)
+      for _, d in ipairs(ds) do
+        for k, x in ipairs(list) do if x == d then table.remove(list, k) break end end
+      end
+      list[#list + 1] = nd
+      chain = chain + 1
+      log[#log + 1] = {r = r, ins = ds, out = nd}
+      if onFuse then onFuse(ds, nd) end
+    end
+  end
+  S.combines = (S.combines or 0) + chain
+  S.bestChain = math.max(S.bestChain or 0, chain)
+  return log
+end
+function G.autoFuseFleet()
+  if (S.autoFuse or 0) < 2 then return end
+  local pool = {}
+  for _, d in ipairs(S.drones) do if G.autoFuseOk(d) then pool[#pool + 1] = d end end
+  local log = G.fuseGroups(pool, S.autoFuse, function(ins, nd)
+    for _, d in ipairs(ins) do
+      local _, k = G.findDrone(d.id)
+      if k then table.remove(S.drones, k) end
+    end
+    G.addDrone(nd)
+  end)
+  if #log > 0 then
+    local best = log[#log].out
+    G.addXP(40 * best.r * #log)
+    FX.play("unlock", 1.1)
+    FX.toast("AUTO-FUSE // " .. #log .. "x", "Best result: " .. RAR[best.r].name .. " " .. G.droneLabel(best), C[RAR[best.r].col])
+  end
 end
 
 function G.odds()
@@ -225,8 +427,8 @@ end
 function G.rollRarity()
   local o = G.odds()
   local x = love.math.random()
-  for k = 1, 4 do if x < o[k] then return k end end
-  return 5
+  for k = 1, #o do if x < o[k] then return k end end
+  return #o + 1
 end
 function G.newDroneId()
   for _ = 1, 80 do
@@ -237,8 +439,31 @@ function G.newDroneId()
   end
   return love.math.random(1000, 9999)
 end
+-- callsigns: higher rarities get a second, grander word
+local CALL_A = {"GHOST", "VIPER", "NOMAD", "RAVEN", "WARDEN", "ECHO", "SPECTER", "HALO", "KESTREL", "FALCON",
+  "MANTIS", "WRAITH", "COBALT", "EMBER", "ONYX", "SIGNAL", "DRIFTER", "TALON", "BEACON", "CINDER", "VESPER",
+  "ORBIT", "STATIC", "TEMPEST", "QUILL", "MERIDIAN", "SENTRY", "LANTERN", "CIPHER", "HUSK", "MOTH", "SABLE",
+  "PILGRIM", "ARGUS", "VECTOR", "RELIC", "JUNO", "ATLAS", "TIDE", "SPARROW"}
+local CALL_B = {"PRIME", "ZERO", "NINE", "ASCENDANT", "SOVEREIGN", "ETERNAL", "OMEGA", "REX", "MAXIMUS", "INFINITE"}
+function G.droneName()
+  local used = {}
+  for _, d in ipairs(S.drones) do if d.name then used[d.name] = true end end
+  for _ = 1, 30 do
+    local n = CALL_A[love.math.random(#CALL_A)]
+    if not used[n] then return n end
+  end
+  return CALL_A[love.math.random(#CALL_A)] .. "-" .. love.math.random(2, 9)
+end
+function G.grandName(n) return n .. " " .. CALL_B[love.math.random(#CALL_B)] end
+function G.nameFor(r)
+  local n = G.droneName()
+  if r >= 4 then n = G.grandName(n) end
+  return n
+end
+function G.droneLabel(d) return d.id .. " " .. (d.name or "") end
+
 function G.makeDrone(r)
-  local d = {id = G.newDroneId(), r = r, lvl = 1, mk = S.zone, mods = {}, traits = {}}
+  local d = {id = G.newDroneId(), r = r, lvl = 1, mk = S.zone, mods = {}, traits = {}, name = G.nameFor(r)}
   local pool = {}
   for _, t in ipairs(D.TRAITS) do pool[#pool + 1] = t.id end
   for _ = 1, RAR[r].traits do
@@ -247,24 +472,31 @@ function G.makeDrone(r)
   d.px, d.py = G.TX, G.TY
   return d
 end
-function G.addDrone(d)
-  table.insert(S.drones, d)
+function G.countPull(d)
   S.rarityEver[d.r] = (S.rarityEver[d.r] or 0) + 1
   if d.r == 4 then S.protoEver = S.protoEver + 1 end
   if d.r == 5 then S.omegaEver = S.omegaEver + 1 end
+  if d.r == 6 then S.prismEver = (S.prismEver or 0) + 1 end
+end
+function G.addDrone(d, noCount)
+  for _, o in ipairs(S.drones) do if o.id == d.id then d.id = G.newDroneId() break end end
+  table.insert(S.drones, d)
+  if not noCount then G.countPull(d) end
   d.hp = G.droneMaxHp(d)
   G.recalc()
   return d
 end
 
 -- fabrication: roll 3 candidates, player keeps one
+function G.pityCaps() return 10 - G.tr("fl_pity"), 50 - 5 * G.tr("fl_pity") end
 function G.rollCandidates()
   local c = {}
   for k = 1, 3 do c[k] = G.rollRarity() end
   S.pity, S.pityP = S.pity + 1, S.pityP + 1
   local best = math.max(c[1], c[2], c[3])
-  if best < 3 and S.pity >= 10 then c[love.math.random(3)] = 3; best = 3 end
-  if best < 4 and S.pityP >= 50 then c[love.math.random(3)] = 4; best = 4 end
+  local pe, pp = G.pityCaps()
+  if best < 3 and S.pity >= pe then c[love.math.random(3)] = 3; best = 3 end
+  if best < 4 and S.pityP >= pp then c[love.math.random(3)] = 4; best = 4 end
   if best >= 3 then S.pity = 0 end
   if best >= 4 then S.pityP = 0 end
   local ds = {}
@@ -306,7 +538,7 @@ function G.flipTime(ch, pos)
 end
 function G.choiceReady(ch) return ch.t >= G.flipTime(ch, 3) + 0.15 end
 
-function G.revealFX(r, x, y, picked)
+function G.revealFX(r, x, y, picked, label)
   local c = C[RAR[r].col]
   local k = picked and 0.6 or 1
   if r <= 2 then
@@ -320,21 +552,22 @@ function G.revealFX(r, x, y, picked)
     FX.play("unlock")
   elseif r == 4 then
     FX.burst(x, y, 140 * k, c, 520, 3)
-    FX.ray(x, y, c, 2.2, 420)
-    for j = 1, 3 do FX.wave(x, y, 30 * j, c, 380 + j * 90, 1) end
-    FX.flashTo(c, 0.5 * k)
-    FX.shake = math.max(FX.shake, 16)
-    FX.play("jackpot")
+    FX.ray(x, y, c, 1.8, 360)
+    FX.flashTo(c, 0.3 * k)
+    FX.shake = math.max(FX.shake, 9)
+    FX.lootSound(1)
     if not picked then G.rankBanner = {t = 0, title = "PROTO-CLASS SIGNAL", text = "A prototype drone is in the batch. Choose wisely.", c = C.red} end
-  else
-    FX.burst(x, y, 260 * k, c, 700, 3.5)
-    FX.burst(x, y, 120 * k, C.white, 900, 2)
-    FX.ray(x, y, c, 3.2, 700)
-    for j = 1, 6 do FX.wave(x, y, 20 * j, j % 2 == 0 and C.white or c, 300 + j * 120, 1.4) end
-    FX.flashTo(c, 0.95 * k)
-    FX.shake = math.max(FX.shake, 28)
-    FX.play("mythic")
+  elseif r == 5 then
+    FX.burst(x, y, 180 * k, c, 620, 3)
+    FX.ray(x, y, c, 2.6, 560)
+    FX.flashTo(c, 0.55 * k)
+    FX.shake = math.max(FX.shake, 16)
+    FX.lootSound(2)
+    FX.slam(label or RAR[r].name, x, y, c)
     if not picked then G.rankBanner = {t = 0, title = "!! OMEGA // MYTHIC DRONE !!", text = "One in three hundred. The tower remembers this day.", c = C.gold} end
+  else
+    -- PRISM: the whole screen loses it
+    FX.prismEvent(label or RAR[r].name, x, y)
   end
 end
 
@@ -349,7 +582,7 @@ function G.pickCandidate(k)
   S.parts = S.parts + scrap
   table.remove(G.choiceQueue, 1)
   G.revealFX(d.r, G.cardX(k), 360, true)
-  FX.toast("DRONE " .. d.id .. " JOINS THE FLEET", RAR[d.r].name .. " MK" .. d.mk .. " // " .. table.concat(d.traits, " + ") ..
+  FX.toast(G.droneLabel(d) .. " JOINS THE FLEET", RAR[d.r].name .. " MK" .. d.mk .. " // " .. table.concat(d.traits, " + ") ..
     "  //  +" .. scrap .. " parts from recycled units", C[RAR[d.r].col])
 end
 
@@ -370,6 +603,7 @@ end
 function G.scrapDrone(k)
   local d = S.drones[k]
   if not d then return end
+  if d.lock then FX.toast("DRONE LOCKED", "Unlock " .. G.droneLabel(d) .. " before scrapping it.", C.red); FX.play("err") return end
   if d.mission and S.map.cells[d.mission.cell] == 3 then S.map.cells[d.mission.cell] = 1 end
   for _, m in ipairs(d.mods) do table.insert(S.modules, m) end
   local p = RAR[d.r].scrap * d.lvl
@@ -377,7 +611,7 @@ function G.scrapDrone(k)
   table.remove(S.drones, k)
   G.scrapConfirm = nil
   G.recalc()
-  FX.toast("DRONE " .. d.id .. " SCRAPPED", "+" .. p .. " parts recovered. Modules returned to vault.", C.red)
+  FX.toast(G.droneLabel(d) .. " SCRAPPED", "+" .. p .. " parts recovered. Modules returned to vault.", C.red)
   FX.play("err", 0.6)
 end
 
@@ -396,9 +630,13 @@ function G.idleCount()
 end
 function G.missionTime(i, d)
   local t = (15 + G.baseThreat(i) * 8) * (S.pupg.rapid and 0.5 or 1)
+  if G.isRadiation and G.isRadiation(i) then t = t * (2 - 0.25 * G.tr("map_rad")) end
+  if G.weatherMission then t = t * G.weatherMission() end
   if d then
     t = t / (1 + G.modSum(d, "SPD"))
     if G.hasTrait(d, "SPRINTER") then t = t * 0.6 end
+    -- the more claim power exceeds the sector threat, the faster the claim (down to 12% of the time)
+    t = t * math.max(0.12, math.min(1, (G.threat(i) / math.max(1e-9, G.claimPower(d))) ^ 0.35))
   end
   return t
 end
@@ -412,7 +650,7 @@ function G.deploy(i, d)
   S.map.cells[i] = 3
   return true
 end
-function G.dispatchAll(quiet)
+function G.dispatchAll(quiet, reserve)
   local cells = {}
   for i = 1, G.MW * G.MH do if G.claimable(i) then cells[#cells + 1] = i end end
   table.sort(cells, function(a, b)
@@ -421,18 +659,27 @@ function G.dispatchAll(quiet)
     return a < b
   end)
   local n = 0
-  for _, i in ipairs(cells) do if G.deploy(i) then n = n + 1 end end
+  for _, i in ipairs(cells) do
+    if reserve and G.idleCount() <= reserve then break end
+    if G.deploy(i) then n = n + 1 end
+  end
   if not quiet then if n > 0 then FX.play("signal", 1.3, 0.5) else FX.play("err") end end
   return n
 end
 
 function G.claimCell(i)
   S.map.cells[i] = 2
+  if G.raiseAlert then G.raiseAlert(G.claimAlert()) end
   S.claimsTotal = S.claimsTotal + 1
   local x, y = G.xy(i)
-  G.revealAround(x, y, 1.5)
+  G.revealAround(x, y, 1.5 + 0.5 * G.tr("map_deep"))
   local th = G.baseThreat(i)
   G.addXP(30 + th * 5)
+  -- radiation sectors take twice as long but always cough up an extra crate
+  if G.isRadiation and G.isRadiation(i) and G.dropCrate then
+    G.dropCrate(x, y, G.rollTier(math.min(5, 2 + math.floor(S.zone / 2))))
+    if G.addFeed then G.addFeed("RADIATION SECTOR " .. G.cellName(i) .. " // EXTRA CRATE", C.gold) end
+  end
   local loot = G.cellLoot(i)
   local text = "+2% output"
   if loot == "ARTIFACT" then
@@ -541,21 +788,33 @@ function G.recalc()
   if S.pupg.synergy then gm = gm * (1 + 0.01 * G.achCount) end
   if S.pupg.legacy then gm = gm * 3 end
   if S.pupg.echo then gm = gm * 10 end
+  gm = gm * (1 + 0.25 * G.tr("eco_out")) * 1.5 ^ G.tr("eco_out2") * (G.tr("eco_final") > 0 and 100 or 1)
+  gm = gm * (1 + 0.5 * G.tr("eco_out3")) * 1.25 ^ G.tr("od_eco") * (1 + 0.01 * G.tr("eco_res") * (G.treeRanks and G.treeRanks() or 0))
   gm = gm * (1 + 0.02 * (S.rank - 1)) * G.droneMult * (1 + 0.02 * G.claimed) * (1 + 0.05 * S.artifacts)
-    * (1 + 0.25 * S.zoneBest)
+    * (1 + (0.25 + 0.05 * G.tr("map_zone")) * S.zoneBest)
   if S.pupg.fingers then clickMult = clickMult * 3 end
   if S.pupg.magnet then cometFreq = cometFreq * 2 end
   if S.pupg.longcomet then cometDur = cometDur * 1.5 end
   if S.pupg.auto then auto = auto + 10 end
   if S.pupg.hydro then hydro = hydro * 2 end
+  clickMult = clickMult * (1 + 0.5 * G.tr("core_tap"))
+  clickMult = clickMult * 2 ^ G.tr("core_tap2") * 1.3 ^ G.tr("od_core")
+  G.RHYTHM_TIME = 12 - 2 * G.tr("core_rhythm")
+  G.SWEET_MULT = 2.5 + 0.5 * G.tr("core_sweet")
+  auto = auto + 5 * G.tr("core_auto")
+  hydro = hydro * (1 + 0.3 * G.tr("sg_pump")) * 1.3 ^ G.tr("od_sig")
+  cometFreq = cometFreq * (1 + 0.15 * G.tr("sg_band"))
+  G.SWEET_LO = 0.75 - 0.03 * G.tr("core_heat")
+  G.OVERHEAT_TIME = 4 - 0.6 * G.tr("core_vent")
+  G.ALTAR_COST = 10 - G.tr("sv_altar")
   -- rank-up perks
   gm = gm * (1 + 0.10 * G.perk("OVERCLOCK"))
   clickMult = clickMult * (1 + 0.25 * G.perk("STEADY"))
   auto = auto + 2 * G.perk("SERVO")
   hydro = hydro * (1 + 0.15 * G.perk("VALVES"))
   cometFreq = cometFreq * (1 + 0.10 * G.perk("TUNER"))
-  G.luck = G.luck + 0.05 * G.perk("SENSE") + (G.eventActive("LUCKY") and 0.5 or 0)
-  G.critChance = math.min(0.75, G.critChance + 0.02 * G.perk("CRIT") + (G.eventActive("LUCKY") and 0.1 or 0))
+  G.luck = G.luck + 0.05 * G.tr("sv_luck") + 0.05 * G.perk("SENSE") + (G.eventActive("LUCKY") and 0.5 or 0)
+  G.critChance = math.min(0.75, G.critChance + 0.03 * G.tr("sv_crit") + 0.02 * G.perk("CRIT") + (G.eventActive("LUCKY") and 0.1 or 0))
   G.globalMult, G.clickMult, G.clickCpsPct = gm, clickMult, clickCpsPct
   G.cometFreq, G.cometDur, G.autoRate, G.hydroMult = cometFreq, cometDur, auto, hydro
   G.baseCps = 0
@@ -594,7 +853,7 @@ end
 ----------------------------------------------------------------------
 -- Units / upgrades
 ----------------------------------------------------------------------
-local function costMult() return (S.pupg.cheap and 0.9 or 1) * math.max(0.5, 1 - 0.02 * G.perk("CUTTER")) end
+local function costMult() return (S.pupg.cheap and 0.9 or 1) * (1 - 0.03 * G.tr("eco_cost")) * math.max(0.5, 1 - 0.02 * G.perk("CUTTER")) end
 function G.genCost(i, n)
   local base = GENS[i].cost * R ^ S.gens[i] * costMult()
   return base * (R ^ n - 1) / (R - 1)
@@ -707,6 +966,26 @@ function G.autoBuy()
       if r.on and r.tank >= G.rigCap(i) then G.collectRig(i, true) end
     end
   end
+  -- rig auto-upgrade: restore offline rigs, then level the cheapest one; never more than half the energy bank
+  if S.autoRigUp then
+    for i, r in ipairs(S.rigs) do
+      if not r.on and D.RIG_UNLOCK[i] <= S.stardust * 0.5 then
+        S.stardust = S.stardust - D.RIG_UNLOCK[i]; r.on = true
+        FX.toast("RIG R" .. i .. " RESTORED", "Auto-upgrade brought a new hydro stream online.", C.line)
+      end
+    end
+    for _ = 1, 5 do
+      local bi, bc
+      for i, r in ipairs(S.rigs) do
+        if r.on and (not bc or G.rigUpCost(i) < bc) then bi, bc = i, G.rigUpCost(i) end
+      end
+      if not bi or bc > S.stardust * 0.5 then break end
+      S.stardust = S.stardust - bc
+      S.rigs[bi].lvl = S.rigs[bi].lvl + 1
+      G.addXP(15)
+      changed = true
+    end
+  end
   if changed then G.recalc() end
 end
 
@@ -715,6 +994,7 @@ end
 ----------------------------------------------------------------------
 function G.xpNeed(r) return math.floor(100 * r ^ 1.6) end
 function G.addXP(n)
+  n = n * (1 + 0.2 * G.tr("sg_xp")) * 1.05 ^ G.tr("od_sig")
   S.xp = S.xp + n
   S.sxp = S.sxp + n
   local ranked = false
@@ -758,10 +1038,59 @@ function G.jackpot(x, y)
   FX.play("jackpot")
 end
 
+-- Core heat: every manual tap heats the core, it cools exponentially. Steady tapping settles at a fixed heat
+-- (about 14% per tap/s), so the SWEET SPOT (75-95%) needs a rhythm of ~5.5-7 taps/s. Mashing past 100% overheats.
+G.heat, G.overheatT, G.sweetT = 0, 0, 0
+G.HEAT_TAP, G.HEAT_COOL = 0.112, 0.8
+G.SWEET_LO, G.SWEET_HI, G.SWEET_MULT = 0.75, 0.95, 2.5
+G.OVERHEAT_TIME, G.RHYTHM_TIME = 4, 12
+function G.inSweetSpot() return G.overheatT <= 0 and G.heat >= G.SWEET_LO and G.heat <= G.SWEET_HI end
+function G.heatUpdate(dt)
+  if G.overheatT > 0 then
+    G.overheatT = G.overheatT - dt
+    G.heat = math.max(0, G.heat - dt / G.OVERHEAT_TIME)
+    G.sweetT = 0
+    return
+  end
+  G.heat = G.heat * math.exp(-G.HEAT_COOL * dt)
+  if G.inSweetSpot() then
+    G.sweetT = G.sweetT + dt
+    -- holding the rhythm long enough ignites a Core Surge
+    if G.sweetT >= G.RHYTHM_TIME then
+      G.sweetT = 0
+      S.rhythms = (S.rhythms or 0) + 1
+      if not G.hasBuff("CORE SURGE") then G.addBuff("CORE SURGE", "prod", 3, 15 + 3 * G.tr("core_surge")) end
+      FX.toast("PERFECT RHYTHM", "12 seconds in the sweet spot: Core Surge ignited. Output x3 for 15s.", C.gold)
+      FX.play("surge", 1.2)
+      for k = 1, 3 do FX.wave(G.OX, G.OY, G.CORE_R * 0.5 * k, C.gold, 380 + k * 60, 0.9) end
+    end
+  elseif G.heat < G.SWEET_LO - 0.05 then
+    G.sweetT = math.max(0, G.sweetT - dt * 2)
+  end
+end
+local errT = 0
 function G.tap(x, y, auto, count)
   count = count or 1
   local v = G.tapValue()
   if not auto then
+    if G.overheatT > 0 then
+      if G.time - errT > 0.25 then errT = G.time; FX.play("err", 0.6, 0.5) end
+      return
+    end
+    G.heat = G.heat + G.HEAT_TAP
+    if G.heat >= 1 then
+      G.heat, G.overheatT, G.combo = 1, G.OVERHEAT_TIME, 0
+      S.overheats = (S.overheats or 0) + 1
+      FX.toast("CORE OVERHEAT", "Taps locked for " .. G.OVERHEAT_TIME .. "s while the coolant vents. Keep the heat in the gold zone.", C.red)
+      FX.play("raid", 1.4, 0.8)
+      FX.shake = math.max(FX.shake, 12)
+      if G.tab == "core" then
+        FX.flashTo(C.red, 0.3)
+        FX.burst(G.OX, G.OY, 60, C.red, 380, 2.5)
+      end
+      return
+    end
+    if G.inSweetSpot() then v = v * G.SWEET_MULT end
     if G.time - G.lastClick < 0.5 then G.combo = G.combo + 1 else G.combo = 1 end
     G.lastClick = G.time
     if G.combo > S.maxCombo then S.maxCombo = G.combo end
@@ -771,10 +1100,10 @@ function G.tap(x, y, auto, count)
       if d.kind == "chain" and G.combo > (d.prog or 0) then d.prog = G.combo end
     end
     if not G.hasBuff("CORE SURGE") then
-      G.surge = G.surge + 0.005 * (1 + math.min(G.combo, 100) / 100)
+      G.surge = G.surge + 0.005 * (1 + math.min(G.combo, 100) / 100) * (G.inSweetSpot() and 2 or 1)
       if G.surge >= 1 then
         G.surge = 0
-        G.addBuff("CORE SURGE", "prod", 3, 15)
+        G.addBuff("CORE SURGE", "prod", 3, 15 + 3 * G.tr("core_surge"))
         FX.toast("CORE SURGE", "Reactor overload. Output x3 for 15s.", C.orange)
         FX.play("surge")
         FX.shake = math.max(FX.shake, 10)
@@ -782,9 +1111,9 @@ function G.tap(x, y, auto, count)
       end
     end
     G.addXP(0.25) -- taps feed rank + Signal Track slowly; buying and claiming matter more
-    if love.math.random() < 0.001 then G.jackpot(x, y) end
+    if love.math.random() < 0.001 * (1 + G.tr("core_jack")) then G.jackpot(x, y) end
   end
-  local crit = love.math.random() < 0.04
+  local crit = love.math.random() < 0.04 + 0.01 * G.tr("core_crit")
   if crit then v = v * 10 end
   v = v * count
   G.gain(v)
@@ -797,7 +1126,7 @@ function G.tap(x, y, auto, count)
     FX.wave(G.OX, G.OY, G.CORE_R, C.red, 420)
     FX.play("tap", 0.6, 0.9)
   else
-    FX.floater(x + rnd(-14, 14), y - 10, "+" .. fmt(v), auto and C.dim or C.white, auto and H.fonts.xs or H.fonts.s)
+    FX.floater(x + rnd(-14, 14), y - 10, "+" .. fmt(v), auto and C.dim or (G.inSweetSpot() and C.gold or C.white), auto and H.fonts.xs or H.fonts.s)
     FX.burst(x, y, auto and 2 or 7, crit and C.red or C.line, 200)
     if not auto then
       FX.wave(G.OX, G.OY, G.CORE_R * 0.9, C.line, 300)
@@ -868,7 +1197,7 @@ end
 function G.rigRate(i)
   return 0.05 * S.rigs[i].lvl * G.hydroMult * (1 + 0.15 * (i - 1)) * (G.eventActive("HYDRO") and 5 or 1)
 end
-function G.rigCap(i) return 30 * S.rigs[i].lvl ^ 1.2 end
+function G.rigCap(i) return 30 * S.rigs[i].lvl ^ 1.2 * (1 + 0.5 * G.tr("sg_rig")) end
 function G.rigUpCost(i) return D.RIG_BASE[i] * 9 ^ (S.rigs[i].lvl - 1) end
 function G.unlockRig(i)
   local cost = D.RIG_UNLOCK[i]
@@ -1054,7 +1383,8 @@ end
 ----------------------------------------------------------------------
 -- Reboot
 ----------------------------------------------------------------------
-function G.dmPotential() return math.floor(math.sqrt(S.totalEarned / 1e9)) end
+function G.dmMult() return 1 + 0.1 * G.tr("eco_cd") end
+function G.dmPotential() return math.floor(math.sqrt(S.totalEarned / 1e9) * G.dmMult()) end
 function G.dmGain() return math.max(0, G.dmPotential() - S.dmTotal) end
 function G.doReboot()
   local g = G.dmGain()
@@ -1238,8 +1568,8 @@ end
 function G.computeOffline()
   local elapsed = os.time() - (S.lastSave or os.time())
   if elapsed <= 30 then return end
-  local cap = S.pupg.memory and 86400 or 43200
-  local rate = S.pupg.memory and 1 or 0.5
+  local cap = (S.pupg.memory and 86400 or 43200) + 14400 * G.tr("sg_night")
+  local rate = (S.pupg.memory and 1 or 0.5) * (1 + 0.25 * G.tr("sg_dream"))
   local gain = G.baseCps * math.min(elapsed, cap) * rate
   local full = 0
   for i, r in ipairs(S.rigs) do
@@ -1375,6 +1705,9 @@ function G.update(dt)
   G.missionsUpdate()
   if G.tacUpdate then G.tacUpdate(dt) end
   if G.metaUpdate then G.metaUpdate(dt) end
+  if G.fiestaUpdate then G.fiestaUpdate(dt) end
+  if G.autopilotUpdate then G.autopilotUpdate(dt) end
+  G.heatUpdate(dt)
 
   -- banners queue instead of overwriting each other
   G.bannerQueue = G.bannerQueue or {}

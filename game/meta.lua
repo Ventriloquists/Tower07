@@ -20,7 +20,9 @@ end
 G.perkChoice = nil -- the open modal
 G.perkRoll = nil   -- the pending roll (kept when the modal is closed, so no free rerolls)
 
+-- mythic transmutations bank boosted rolls: every card ENHANCED or better, 35% PRIME
 local function rollPerks()
+  local boost = (G.S.mythicRolls or 0) > 0
   local pool = {}
   for _, p in ipairs(D.PERKS) do pool[#pool + 1] = p end
   local cands = {}
@@ -28,9 +30,10 @@ local function rollPerks()
     local p = table.remove(pool, love.math.random(#pool))
     local x = love.math.random() * 100
     local g = x < 5 and 3 or (x < 30 and 2 or 1)
+    if boost then g = x < 35 and 3 or 2 end
     cands[k] = {def = p, grade = g}
   end
-  return {cands = cands, t = 0, flipped = {}}
+  return {cands = cands, t = 0, flipped = {}, boost = boost}
 end
 
 function G.perkText(def, stacks) return string.format(def.desc, def.per * stacks) end
@@ -42,7 +45,15 @@ function G.openPerkChoice()
   G.perkChoice = G.perkRoll
   FX.play("unlock", 1.2)
 end
-function G.closePerks() G.perkChoice = nil end
+-- perk choices opened from the Mythic Altar return there (picked or "decide later")
+local function backToAltar()
+  if not G.altarReturn then return false end
+  G.altarReturn = nil
+  G.perkChoice = nil
+  if G.openAltar then G.openAltar() end
+  return true
+end
+function G.closePerks() G.perkChoice = nil; backToAltar() end
 function G.perkCardX(k) return 640 + (k - 2) * 260 end
 
 function G.pickPerk(k)
@@ -53,6 +64,7 @@ function G.pickPerk(k)
   local gr = D.PERK_GRADE[c.grade]
   S.perks[c.def.id] = (S.perks[c.def.id] or 0) + gr.stacks
   S.perkPoints = S.perkPoints - 1
+  if ch.boost then S.mythicRolls = math.max(0, (S.mythicRolls or 0) - 1) end
   G.perkRoll, G.perkChoice = nil, nil
   G.recalc()
   local cc = C[gr.col]
@@ -62,6 +74,8 @@ function G.pickPerk(k)
   if c.grade >= 2 then FX.flashTo(cc, 0.2 * c.grade); FX.shake = math.max(FX.shake, c.grade * 6) end
   FX.play(c.grade == 3 and "jackpot" or "unlock", 1 + c.grade * 0.1)
   FX.toast("PERK INSTALLED // " .. c.def.name:upper(), G.perkText(c.def, gr.stacks) .. "  (" .. gr.name .. ")", cc)
+  -- after the last boosted pick, go back to the altar instead of rolling ordinary points
+  if ch.boost and (S.mythicRolls or 0) == 0 and backToAltar() then return end
   if S.perkPoints > 0 then G.perkRoll = rollPerks(); G.perkChoice = G.perkRoll end
 end
 
@@ -130,7 +144,8 @@ function G.scheduleEvent(delay)
 end
 
 function G.startEvent(def)
-  G.event = {def = def, t = D.EVENT_DURATION, dur = D.EVENT_DURATION}
+  local dur = D.EVENT_DURATION + 30 * G.tr("sg_event")
+  G.event = {def = def, t = dur, dur = dur}
   G.lastEventId = def.id
   if def.id == "GOLDEN" then G.addBuff("GOLDEN HOUR", "prod", 3, D.EVENT_DURATION) end
   G.recalc()
