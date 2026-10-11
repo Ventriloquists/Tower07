@@ -10,7 +10,7 @@ local TAU = math.pi * 2
 local Va = {}
 
 -- the vault is a view of the HANGAR station (FLEET | VAULT), drawn in the content area, not a pop-up
-local X0, Y0, W, HH = 24, 90, 1232, 540
+local X0, Y0, W, HH = 24, 92, 1232, 538
 local GX, GY, GW = X0 + 20, Y0 + 92, 800   -- module grid
 local GB = Y0 + HH - 20
 local PX, PW = X0 + 840, W - 860           -- right column

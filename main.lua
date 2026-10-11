@@ -462,6 +462,16 @@ local function runSelftest()
     G.heat, G.overheatT, G.surge, G.combo, G.sweetT = 0.86, 0, 0.62, 40, 6
   end
   if f == 197 then shot("reactor_staged") end
+  -- every station once, clean (tab change and screenshot never in the same frame)
+  if f == 198 then G.tab = "build"; G.stagedDust, G.stagedMode = G.S.stardust, G.buyMode; G.S.stardust, G.buyMode = 1e45, 1 end
+  if f == 200 then shot("station_build") end
+  if f == 201 then G.tab = "nova"; G.S.stardust, G.buyMode = G.stagedDust, G.stagedMode end
+  if f == 203 then shot("station_reboot") end
+  if f == 204 then G.tab = "hangar" end
+  if f == 206 then shot("station_hangar") end
+  if f == 207 then G.tab = "map" end
+  if f == 209 then shot("station_map") end
+  if f == 210 then G.tab = "core"; FX.locks = {} end
   if f == 194 then
     -- COLLECT ALL: queue every instant reward, drain the cascade, nothing claimable may remain
     local before = #G.collectables()

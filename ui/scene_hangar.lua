@@ -26,10 +26,10 @@ end
 local function banner()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w = 24, 100, 320
+  local x, y, w = 24, H.HEAD.BODY_Y, 320
   -- art
   local h = 226
-  col(C.panel, 0.95); lg.rectangle("fill", x, y, w, h)
+  H.card(x, y, w, h, nil, C.line)
   lg.push("all")
   lg.intersectScissor(x, y, w, h)
   lg.setBlendMode("add")
@@ -40,8 +40,6 @@ local function banner()
       x + w / 2 + math.cos(a + 0.1) * 300, y + 96 + math.sin(a + 0.1) * 300)
   end
   lg.pop()
-  H.hatch(x, y, w, h, C.line, 0.05, 8)
-  H.brackets(x, y, w, h, 12, C.line)
   H.droneIcon(x + w / 2, y + 92, 2.6, C.white)
   lg.setFont(Fo.dxl); col(C.white); lg.printf("FABRICATION", x, y + 150, w, "center")
   lg.setFont(Fo.s); col(C.orange); lg.printf("EVERY BATCH: PICK 1 OF 3", x, y + 186, w, "center")
@@ -94,9 +92,9 @@ local function roster()
   local S = G.S
   local Fo = H.fonts
   local x, w = 360, 500
-  local top, bot = 100, 630
-  H.label("ROSTER // " .. #S.drones .. " / " .. G.bayCap() .. "  //  IDLE " .. G.idleCount(), x, 82, C.white)
-  H.label("DRAG ONTO SAME RARITY TO COMBINE", x + w - 200, 82, C.orange, 0.8)
+  local top, bot = H.HEAD.BODY_Y + 18, 630
+  H.label("ROSTER // " .. #S.drones .. " / " .. G.bayCap() .. "  //  IDLE " .. G.idleCount(), x, H.HEAD.BODY_Y, C.white)
+  H.label("DRAG ONTO SAME RARITY TO COMBINE", x + w - 200, H.HEAD.BODY_Y, C.orange, 0.8)
   Sc.cards = {}
   H.scrollRegion(x, top, w, bot - top, "roster")
   lg.setScissor(x - 2, top, w + 4, bot - top)
@@ -166,19 +164,16 @@ end
 local function detail()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w, h = 876, 100, 380, 272
+  local x, y, w, h = 876, H.HEAD.BODY_Y, 380, 272
   local d, k = selected()
-  col(C.panel, 0.95); lg.rectangle("fill", x, y, w, h)
+  H.card(x, y, w, h, nil, d and C[D.RARITY[d.r].col] or C.faint)
   if not d then
-    H.brackets(x, y, w, h, 10, C.faint)
     lg.setFont(Fo.m); col(C.dim); lg.printf("NO DRONES YET", x, y + 100, w, "center")
     H.label("Fabricate your first drone with hydro from the rigs.", x + 40, y + 130, C.dim)
     return
   end
   local rr = D.RARITY[d.r]
   local rc = C[rr.col]
-  H.brackets(x, y, w, h, 10, rc)
-  if d.r >= 3 then H.hatch(x, y, w, h, rc, 0.05, 8) end
   if d.r == #D.RARITY then H.holoFX(x, y, w, h, 0.6) end
   H.droneIcon(x + 60, y + 60, 1.7, rc)
   lg.setFont(Fo.dxl); col(C.white); lg.print(tostring(d.id), x + 120, y + 8)
@@ -244,7 +239,7 @@ end
 local function vault()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w = 876, 384, 380
+  local x, y, w = 876, H.HEAD.BODY_Y + 272 + 16, 380
   local bot = 630
   if not G.unlocked("vault") then
     local _, need = G.unlocked("vault")
@@ -262,13 +257,12 @@ local function vault()
   local mc = C[D.LOOT[D.MYTHIC].col]
   local pulse = 0.5 + 0.5 * math.sin(G.time * 4)
   local hov = H.mouseIn(x, y, w, h)
-  col(C.panel, 0.95); lg.rectangle("fill", x, y, w, h)
+  H.card(x, y, w, h, nil, ready and mc or C.line)
   if hov then col(C.line, 0.05); lg.rectangle("fill", x, y, w, h) end
-  H.hatch(x, y, w, 28, C.line, 0.1, 6)
-  H.brackets(x, y, w, h, 10, ready and mc or C.line, hov and 1 or 0.7)
-  lg.setFont(Fo.m); col(C.white); lg.print("MODULE VAULT", x + 12, y + 5)
-  lg.setFont(Fo.s); col(#S.modules >= G.vaultCap() and C.red or C.dim)
-  lg.printf(#S.modules .. " / " .. G.vaultCap(), x, y + 7, w - 12, "right")
+  H.label("MODULE VAULT", x + 12, y + 8, ready and mc or C.line)
+  lg.setFont(Fo.xs); col(#S.modules >= G.vaultCap() and C.red or C.dim)
+  lg.printf(#S.modules .. " / " .. G.vaultCap() .. " STORED", x, y + 8, w - 12, "right")
+  col(C.faint, 0.9); lg.line(x + 12, y + 24, x + w - 12, y + 24)
   -- rarity breakdown as one stacked bar
   local counts = {0, 0, 0, 0, 0, 0, 0}
   for _, m in ipairs(S.modules) do counts[m.r] = counts[m.r] + 1 end
@@ -375,19 +369,21 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.d2); col(C.white); lg.print("HANGAR", 24, 58)
+  local HD = H.HEAD
+  local tx = H.screenTitle("HANGAR")
   -- one station, two views: the fleet and the module vault
   if G.unlocked("vault") then
-    H.segmented(140, 58, 190, 22, {"FLEET", "VAULT  //  " .. #G.S.modules}, G.vaultOpen and 2 or 1, function(k)
+    H.segmented(tx + 16, HD.CTRL_Y, 190, HD.CTRL_H, {"FLEET", "VAULT  //  " .. #G.S.modules}, G.vaultOpen and 2 or 1, function(k)
       if k == 2 and not G.vaultOpen then G.openVault() elseif k == 1 and G.vaultOpen then G.vaultOpen = false; FX.play("tick", 1.2) end
     end, "hangarview")
   end
   if G.vaultOpen then Vault.draw() return end
-  H.button(360, 56, 230, 22, "AUTO-FUSE // " .. G.autoFuseLabel(), true, G.cycleAutoFuse,
+  -- fleet automation sits right-aligned in the header band
+  H.button(HD.RIGHT - 200 - 16 - 230, HD.CTRL_Y, 230, HD.CTRL_H, "AUTO-FUSE // " .. G.autoFuseLabel(), true, G.cycleAutoFuse,
     (G.S.autoFuse or 0) > 0 and C.gold or C.dim, Fo.xs)
-  H.button(600, 56, 200, 22, "AUTO-UPGRADE // " .. (G.S.autoUpgrade and "ON" or "OFF"), true,
+  H.button(HD.RIGHT - 200, HD.CTRL_Y, 200, HD.CTRL_H, "AUTO-UPGRADE // " .. (G.S.autoUpgrade and "ON" or "OFF"), true,
     function() G.S.autoUpgrade = not G.S.autoUpgrade; FX.play("tick", 1.2) end, G.S.autoUpgrade and C.line or C.dim, Fo.xs)
-  if H.mouseIn(600, 56, 200, 22) then H.setTip("AUTO-UPGRADE", "Spends parts on the cheapest drone upgrade, a few times per second.") end
+  if H.mouseIn(HD.RIGHT - 200, HD.CTRL_Y, 200, HD.CTRL_H) then H.setTip("AUTO-UPGRADE", "Spends parts on the cheapest drone upgrade, a few times per second.") end
   banner()
   Sc.update()
   roster()

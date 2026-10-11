@@ -1432,8 +1432,8 @@ function G.dmMult() return 1 + 0.1 * G.tr("eco_cd") end
 G.DM_EXP, G.DM_BASE = 1 / 4, 1e6 -- first ~30 Core Data at ~1e12 lifetime energy, same as the old square root
 function G.dmPotential() return math.floor((S.totalEarned / G.DM_BASE) ^ G.DM_EXP * G.dmMult()) end
 -- one reboot can at most triple your total Core Data (min 25 for new players), and that cap charges up over the
--- first 30 minutes of a run: quick back-to-back reboots give little, so reboots cannot cascade in minutes
-G.RUN_CHARGE = 1800
+-- first 60 minutes of a run (x2 after 30): quick back-to-back reboots give little, so reboots cannot cascade
+G.RUN_CHARGE = 3600
 function G.runCharge() return math.min(1, (S.runTime or 0) / G.RUN_CHARGE) end
 function G.dmCap() return math.max(25, 2 * S.dmTotal * G.runCharge()) end
 function G.dmGain() return math.max(0, math.min(G.dmPotential() - S.dmTotal, G.dmCap())) end

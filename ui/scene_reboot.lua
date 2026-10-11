@@ -34,10 +34,7 @@ local function prestige()
   local x, y, w, h = 24, 92, 300, 538
   local g = G.dmGain()
   local can = g >= 1
-  col(C.panel, 0.95); lg.rectangle("fill", x, y, w, h)
-  H.hatch(x, y, w, 30, C.red, 0.25, 6)
-  H.brackets(x, y, w, h, 12, C.red)
-  lg.setFont(Fo.m); col(C.red); lg.print("REBOOT PROTOCOL", x + 14, y + 6)
+  H.card(x, y, w, h, "REBOOT PROTOCOL", C.red)
   H.label("CORE DATA IN BANK", x + 14, y + 40, C.dim)
   lg.setFont(Fo.dxl); col(C.white); lg.print(fmt(S.dm), x + 14, y + 52)
   H.label("LIFETIME " .. fmt(S.dmTotal) .. "  //  OUTPUT x" .. fmt(G.cdBonus()), x + 14, y + 94, C.dim)
@@ -363,7 +360,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.d2); col(C.white); lg.print("REBOOT", 24, 54)
+  H.screenTitle("REBOOT")
   updateDrag()
   prestige()
   tree()

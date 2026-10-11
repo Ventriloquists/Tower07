@@ -164,8 +164,7 @@ end
 function Sc.draw()
   local S = G.S
   local Fo = H.fonts
-  lg.setFont(Fo.d2); col(C.white); lg.print("HYDRO EXTRACTION", 24, 58)
-  H.label("Rigs fill their tanks on their own. Collect at peak for +25%. The water fabricates drones.", 260, 70, C.dim)
+  H.screenTitle("HYDRO EXTRACTION", "Rigs fill their tanks on their own. Collect at peak for +25%. The water fabricates drones.")
   -- manifold into the reserve
   local lastOut = 0
   for i = 1, #S.rigs do

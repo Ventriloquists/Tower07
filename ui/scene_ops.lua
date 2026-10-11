@@ -22,25 +22,26 @@ local STEP = 132
 local function track()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w, h = 24, 84, 1232, 182
+  local x, y, w, h = 24, H.HEAD.BODY_Y, 1232, 178
   local need = G.passNeed(S.passTier + 1)
   local ready = G.passReady()
-  H.card(x, y, w, h, nil, ready > 0 and C.orange or C.line)
-  lg.setFont(Fo.d3); col(C.white); lg.print("SIGNAL TRACK", x + 16, y + 12)
-  H.label("TIER " .. S.passTier .. "  //  " .. fmt(S.sxp) .. " / " .. fmt(need) .. " SXP TO NEXT  //  EVERYTHING YOU DO EARNS SXP",
-    x + 170, y + 17, C.dim)
-  H.button(x + w - 236, y + 10, 222, 32, ready > 0 and ("CLAIM ALL  //  " .. ready .. (ready == 1 and " TIER" or " TIERS")) or "NOTHING TO CLAIM",
-    ready > 0, G.claimAllPass, C.orange, Fo.s, nil, ready > 0)
-  H.button(x + w - 318, y + 10, 34, 32, "<", true, function() G.passView = math.max(1, (G.passView or 1) - 4) end, C.dim, Fo.s)
-  H.button(x + w - 280, y + 10, 34, 32, ">", true, function() G.passView = (G.passView or 1) + 4 end, C.dim, Fo.s)
+  -- standard card header (title in the lit band, progress on the right); controls get their own row below it
+  H.card(x, y, w, h, "SIGNAL TRACK  //  TIER " .. S.passTier, ready > 0 and C.orange or C.line,
+    fmt(S.sxp) .. " / " .. fmt(need) .. " SXP TO TIER " .. (S.passTier + 1))
+  local ry, rh = y + 32, H.HEAD.CTRL_H
+  H.label("EVERYTHING YOU DO EARNS SXP  //  WHEEL OR ARROWS TO BROWSE", x + 12, ry + 7, C.dim)
+  H.button(x + w - 12 - 222, ry, 222, rh, ready > 0 and ("CLAIM ALL  //  " .. ready .. (ready == 1 and " TIER" or " TIERS")) or "NOTHING TO CLAIM",
+    ready > 0, G.claimAllPass, C.orange, Fo.xs, nil, ready > 0)
+  H.button(x + w - 12 - 222 - 8 - 34, ry, 34, rh, ">", true, function() G.passView = (G.passView or 1) + 4 end, C.dim, Fo.s)
+  H.button(x + w - 12 - 222 - 8 - 34 - 6 - 34, ry, 34, rh, "<", true, function() G.passView = math.max(1, (G.passView or 1) - 4) end, C.dim, Fo.s)
   -- the road: scrolls smoothly; wheel and arrows move the view; every visit starts at your next claim
   local now = love.timer.getTime()
   if not G.passView or now - (Sc.seen or 0) > 0.5 then G.passView = math.max(1, S.passClaimed - 1) end
   Sc.seen = now
   local view = H.tween("passRoad", G.passView, H.MO.base)
-  local lx0, lx1, ly = x + 20, x + w - 20, y + 118
+  local lx0, lx1, ly = x + 20, x + w - 20, y + 124
   lg.push("all")
-  lg.intersectScissor(lx0 - 10, y + 48, lx1 - lx0 + 20, h - 50)
+  lg.intersectScissor(lx0 - 10, y + 62, lx1 - lx0 + 20, h - 64)
   local function nx(t) return lx0 + 40 + (t - view) * STEP end
   -- base line, lit up to your exact position (claimed + progress into the next tier)
   col(C.faint); lg.rectangle("fill", lx0, ly, lx1 - lx0, 2)
@@ -57,7 +58,7 @@ local function track()
       local reached = t <= S.passTier
       local nextClaim = t == S.passClaimed + 1 and reached
       local size = r.big and 9 or 6
-      local hov = H.mouseIn(cx - STEP / 2, y + 48, STEP, h - 52)
+      local hov = H.mouseIn(cx - STEP / 2, y + 62, STEP, h - 64)
       -- reward above the line
       I.draw(r.icon or "crate", cx, ly - 44, r.big and 12 or 9, reached and rc or C.faint, (reached or hov) and 1 or 0.7)
       lg.setFont(Fo.xs); col(reached and rc or C.dim, reached and 1 or 0.8)
@@ -88,9 +89,9 @@ local function track()
       else col(C.faint); lg.printf("LOCKED", cx - 50, ly + 32, 100, "center") end
       if hov then
         H.setTip("TIER " .. t, r.text .. (claimed and " // CLAIMED" or (reached and " // READY" or "")))
-        if nextClaim then col(C.orange, 0.06); lg.rectangle("fill", cx - STEP / 2, y + 48, STEP, h - 52) end
+        if nextClaim then col(C.orange, 0.06); lg.rectangle("fill", cx - STEP / 2, y + 62, STEP, h - 64) end
       end
-      if nextClaim then H.addHit(cx - STEP / 2, y + 48, STEP, h - 52, G.claimPass) end
+      if nextClaim then H.addHit(cx - STEP / 2, y + 62, STEP, h - 64, G.claimPass) end
     end
   end
   -- you are here
@@ -98,7 +99,7 @@ local function track()
     col(C.white); lg.polygon("fill", px - 5, ly - 12, px + 5, ly - 12, px, ly - 4)
   end
   lg.pop()
-  H.scrollRegion(x, y + 48, w, h - 50, "passView", true)
+  H.scrollRegion(x, y + 62, w, h - 64, "passView", true)
 end
 
 ----------------------------------------------------------------------
@@ -119,13 +120,13 @@ end
 local function directives()
   local S = G.S
   local Fo = H.fonts
-  local x0, y, h = 24, 284, 346
+  local x0, y, h = 24, 288, 342 -- heading at 286, dossiers end at 630
   H.heading("DIRECTIVES", x0, y - 2, 800, C.line, nil, S.dirDone .. " COMPLETED  //  REROLL ONE EVERY 5 MIN")
   y = y + 26
   h = h - 26
-  local w = (800 - 2 * 12) / 3
+  local w = (800 - 2 * H.HEAD.GUTTER) / 3
   for i, d in ipairs(S.directives) do
-    local x = x0 + (i - 1) * (w + 12)
+    local x = x0 + (i - 1) * (w + H.HEAD.GUTTER)
     local prog = G.dirProgress(d)
     local f = clamp(prog / d.target, 0, 1)
     local done = prog >= d.target
@@ -138,15 +139,15 @@ local function directives()
       H.label(string.format("DIRECTIVE %02d", i), x + 14, y + 6, C.dim)
     end
     -- progress ring with the count inside
-    local cx, cy = x + w / 2, y + 96
+    local cx, cy = x + w / 2, y + 90
     ring(cx, cy, 52, f, dc)
     lg.setFont(Fo.d2); col(done and C.orange or C.white); lg.printf(math.floor(f * 100) .. "%", cx - 60, cy - 18, 120, "center")
     lg.setFont(Fo.xs); col(C.dim)
     lg.printf(fmt(math.max(0, math.min(prog, d.target))) .. " / " .. fmt(d.target), cx - 60, cy + 10, 120, "center")
     -- the order
-    H.richf(G.dirText(d), x + 14, y + 168, w - 28, "center", C.white, 1, Fo.s)
-    H.label("REWARD", x + 14, y + 214, C.dim)
-    H.richf(G.rewardText(d), x + 14, y + 228, w - 28, "left", d.priority and C.orange or C.line, 1, Fo.xs)
+    H.richf(G.dirText(d), x + 14, y + 160, w - 28, "center", C.white, 1, Fo.s)
+    H.label("REWARD", x + 14, y + 204, C.dim)
+    H.richf(G.rewardText(d), x + 14, y + 218, w - 28, "left", d.priority and C.orange or C.line, 1, Fo.xs)
     H.button(x + 14, y + h - 76, w - 28, 36, done and "CLAIM" or "IN PROGRESS", done, function() G.claimDirective(i) end,
       C.orange, Fo.m, nil, done)
     local cd = S.rerollAt - G.now()
@@ -161,7 +162,7 @@ end
 local function schedule()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w = 840, 282, 416
+  local x, y, w = 840, 286, 416
   local now = os.date("*t")
   local left = 86400 - (now.hour * 3600 + now.min * 60 + now.sec)
   local canClaim = not G.dailyPending and S.daily.last ~= G.today()
@@ -219,7 +220,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.d2); col(C.white); lg.print("OPERATIONS", 24, 54)
+  H.screenTitle("OPERATIONS")
   track()
   directives()
   schedule()

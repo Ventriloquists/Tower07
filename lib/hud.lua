@@ -325,6 +325,22 @@ function H.focusRing(x, y, w, h, c, t)
   lg.line(x + w - l, y + h, x + w, y + h, x + w, y + h - l)
 end
 
+-- station layout grid: every station shares one header band and one content top
+H.HEAD = {TITLE_Y = 56, CTRL_Y = 58, CTRL_H = 26, BODY_Y = 92, GUTTER = 16, LEFT = 24, RIGHT = 1256}
+-- station (or column) title with an optional subtitle 16px after it; returns the x where the subtitle ends
+function H.screenTitle(title, sub, x, subColor)
+  x = x or H.HEAD.LEFT
+  local f = H.fonts
+  lg.setFont(f.d2); col(C.white); lg.print(title, x, H.HEAD.TITLE_Y)
+  local ex = x + f.d2:getWidth(title)
+  if sub then
+    ex = ex + 16
+    H.label(sub, ex, H.HEAD.TITLE_Y + 10, subColor or C.dim)
+    ex = ex + f.xs:getWidth(sub)
+  end
+  return ex
+end
+
 -- section heading: index number, display title, hairline rule (used for screen and column titles)
 function H.heading(title, x, y, w, c, index, sub)
   local f = H.fonts

@@ -53,16 +53,15 @@ end
 ----------------------------------------------------------------------
 local function milestones()
   local Fo = H.fonts
-  local x, y, w = 24, 84, 1232
+  local x, y, w = 24, H.HEAD.BODY_Y, 1232
   local n = #D.ARCHIVE
   local nextA
   for _, a in ipairs(D.ARCHIVE) do if G.achCount < a.n then nextA = a break end end
-  H.card(x, y, w, 84, nil, C.line)
-  H.label("MILESTONES  //  EVERY LOG IS +1% OUTPUT", x + 14, y + 10, C.dim)
+  H.card(x, y, w, 84, "MILESTONES  //  EVERY LOG IS +1% OUTPUT", C.line)
   if nextA then
-    H.richf("NEXT AT " .. nextA.n .. " LOGS: " .. nextA.text:upper(), x, y + 9, w - 14, "right", C.orange, 1, Fo.xs)
+    H.richf("NEXT AT " .. nextA.n .. " LOGS: " .. nextA.text:upper(), x, y + 8, w - 12, "right", C.orange, 1, Fo.xs)
   end
-  local lx0, lx1, ly = x + 30, x + w - 30, y + 52
+  local lx0, lx1, ly = x + 30, x + w - 30, y + 56
   col(C.faint); lg.rectangle("fill", lx0, ly - 1, lx1 - lx0, 2)
   local maxN = D.ARCHIVE[n].n
   local function px(v) return lx0 + (lx1 - lx0) * (v / maxN) ^ 0.6 end
@@ -86,8 +85,8 @@ end
 ----------------------------------------------------------------------
 local function index(list)
   local Fo = H.fonts
-  local x, w, top, bot = 24, 296, 204, 630
-  H.heading("SERIES", x, 180, w, C.line, nil, #list .. " SERIES")
+  local x, w, top, bot = 24, 296, 218, 630
+  H.heading("SERIES", x, 192, w, C.line, nil, #list .. " SERIES")
   H.scrollRegion(x, top, w, bot - top, "archSeries")
   local clip = {top, bot}
   lg.setScissor(x - 4, top, w + 8, bot - top)
@@ -129,14 +128,14 @@ end
 local function detail(g)
   local S = G.S
   local Fo = H.fonts
-  local x, w, top, bot = 336, 540, 232, 630
+  local x, w, top, bot = 336, 540, 246, 630
   local got, claim = groupState(g)
-  lg.setFont(Fo.d3); col(C.white); lg.print(g.title, x, 178)
+  lg.setFont(Fo.d3); col(C.white); lg.print(g.title, x, 190)
   H.label(got .. " OF " .. #g.ids .. " LOGGED" .. (claim > 0 and ("  //  " .. claim .. " REWARD" .. (claim > 1 and "S" or "") .. " WAITING") or ""),
-    x, 200, claim > 0 and C.orange or C.dim)
-  col(C.faint); lg.line(x, 220, x + w, 220)
+    x, 212, claim > 0 and C.orange or C.dim)
+  col(C.faint); lg.line(x, 234, x + w, 234)
   local unclaimed = G.unclaimedLogs()
-  H.button(x + w - 200, 178, 200, 30, unclaimed > 0 and ("CLAIM ALL LOGS  //  " .. unclaimed) or "ALL CLAIMED",
+  H.button(x + w - 200, 190, 200, 30, unclaimed > 0 and ("CLAIM ALL LOGS  //  " .. unclaimed) or "ALL CLAIMED",
     unclaimed > 0, G.claimAllLogs, C.orange, Fo.xs, nil, unclaimed > 0)
   H.scrollRegion(x, top, w, bot - top, "archDetail")
   local clip = {top, bot}
@@ -182,7 +181,7 @@ end
 local function record()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w = 892, 178, 364
+  local x, y, w = 892, 192, 364
   H.card(x, y, w, 196, "DRONE COLLECTION", C.line, "ALL-TIME")
   local maxC = 1
   for k = 1, #D.RARITY do maxC = math.max(maxC, S.rarityEver[k] or 0) end
@@ -195,8 +194,8 @@ local function record()
     H.bar(x + 130, ry + 8, 170, 5, n / maxC, rc)
     lg.setFont(Fo.s); col(C.white); lg.printf(tostring(n), x, ry + 2, w - 14, "right")
   end
-  y = y + 204
-  H.card(x, y, w, 248, "SERVICE RECORD", C.line)
+  y = y + 196 + H.HEAD.GUTTER
+  H.card(x, y, w, 630 - y, "SERVICE RECORD", C.line)
   local day = math.floor((os.time() - (S.startTime or os.time())) / 86400) + 1
   local stats = {
     {"ENERGY HARVESTED", fmt(S.totalEarned)}, {"CORE TAPS", fmt(S.clicks)},
@@ -207,7 +206,7 @@ local function record()
     {"PLAY TIME", H.fmtTime(S.playTime)}, {"MISSION DAY // BEST STREAK", day .. " // " .. S.bestStreak},
   }
   for k, s in ipairs(stats) do
-    local sy = y + 34 + (k - 1) * 17
+    local sy = y + 34 + (k - 1) * 16
     H.label(s[1], x + 14, sy, C.dim)
     lg.setFont(Fo.xs); col(C.white); lg.printf(s[2], x, sy, w - 14, "right")
   end
@@ -217,8 +216,7 @@ function Sc.draw()
   local Fo = H.fonts
   local list = buildGroups()
   if not G.archSel or not list[G.archSel] then G.archSel = pickDefault() end
-  lg.setFont(Fo.d2); col(C.white); lg.print("ARCHIVE", 24, 54)
-  H.label(G.achCount .. " / " .. #D.ACH .. " LOGS", 130, 64, C.dim)
+  H.screenTitle("ARCHIVE", G.achCount .. " / " .. #D.ACH .. " LOGS")
   milestones()
   index(list)
   detail(list[G.archSel])

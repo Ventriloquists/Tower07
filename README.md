@@ -28,6 +28,7 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
   - **Mothership bounty**: kill the zone boss within 5 minutes for 2 LEGENDARY crates and 3 fab tokens. An alert follows you on every screen while it is alive.
 - **Meta progression**: technician ranks with pick-1-of-3 perks, an endless Signal Track reward ladder, directives, a daily supply streak, timed world events and 300+ log entries.
 - **Reboot (prestige)**: trade the cycle for Core Data and spend it in a zoomable, pannable protocol skill tree: 6 branches, 54 nodes, 200+ ranks (output, tapping, fleet, map range, salvage, signals).
+- **Reactor saturation**: once a reboot would double your Core Data, output falls in proportion to how far past that line the run is (twice past = half output), a hard wall instead of a soft curve. Every reward worth "N seconds of production" (crates, directives, signals, offline time) uses the saturated output, so nothing bypasses it. One reboot can at most triple your Core Data, and that cap charges up over the first 60 minutes of a run (x2 after 30), so reboots cannot cascade in minutes.
 - **Glossary**: every game term is highlighted in the UI and explained on hover.
 - **Settings**: the COMMAND house style plus 70+ color themes (including high-contrast, colorblind-safe, memey and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
   - **Boss key (F12)**: disguises the game as a spreadsheet or build log.
@@ -100,6 +101,7 @@ The house style is **COMMAND** (the default theme): graphite surfaces, ice-white
 - **Type**: Bahnschrift for the interface, Franklin Gothic for display (`H.fonts.huge`, `d1`, `dxl`, `d2`, `d3`), falling back to Bahnschrift.
 - **Components**: `H.button` (hover fill sweep, press sink, lock-on focus ticks, light sweep on primary actions, hatched disabled state), `H.card`, `H.rowFrame`, `H.segmented` (sliding selection), `H.heading`, `H.bar` (gliding fill with a lit leading edge), `H.focusRing`, `H.badge`.
 - **Interaction**: idle controls are calm; hover fills, brightens the edge and runs one light sweep; press sinks 1px; a refused click shakes the control red and buzzes. The system cursor turns into a hand over anything clickable (the reactor included) and a "no" sign over disabled controls. **TAB / SHIFT+TAB** move a keyboard focus (lock-on corner ticks) through every control in reading order, **ENTER** presses it, **ESC** clears it. One filled call to action per area; red means danger only.
+- **Layout grid**: every station shares one header band (`H.HEAD`): title at y 56 with its subtitle 16px after it (`H.screenTitle`), header controls at y 58 and 26px tall, content from y 92, 16px gutters between columns and cards.
 - **Motion**: `H.tween` / `H.hoverT` give immediate-mode elements eased state. Stations pan side by side along the Spine (the marker travels the line with them), modals fade their backdrop and draw their frame, tooltips rise into place, banners open as a letterbox. **Reduced motion** (Settings > Comfort) snaps all of it and stops the background drift and grain.
 
 **Self-test**: drives every system headlessly, captures screenshots and writes `selftest_result.txt` to its save folder.
@@ -107,6 +109,8 @@ The house style is **COMMAND** (the default theme): graphite surfaces, ice-white
 ```bash
 love . --selftest
 ```
+
+**Economy probes**: `--econdiag` writes every output multiplier of your real save to `econdiag.txt` (read-only), `--longrun` / `--longrun-reboot` simulate 12 / 24 hours from a fresh start, `--longrun-save` simulates 3 hours from a copy of your save.
 
 **Pacing probe**: simulates a new player for 30 minutes and writes an unlock timeline to `pace.txt`.
 
