@@ -409,10 +409,12 @@ local function runSelftest()
   end
   if f == 32 then V.fakeMouse = {985, 170} end
   if f == 34 then shot("kw_hover_core") end
-  if f == 35 then V.fakeMouse = {640, 350}; H.focusStep(1); H.focusStep(1) end
+  if f == 35 then V.fakeMouse = {G.OX, G.OY}; H.focusStep(1); H.focusStep(1) end
   if f == 36 then
     shot("reactor_hover_focus")
-    G.selftestFocus = H.focusedHit() and "focus-ok" or "focus-FAIL"
+    -- deterministic: step and resolve against the same (last drawn) frame of click areas
+    if not H.focusedHit() then H.focusStep(1) end
+    G.selftestFocus = H.focusedHit() and "focus-ok" or ("focus-FAIL hits=" .. #H.hits .. " tab=" .. tostring(G.tab) .. " modal=" .. tostring(G.modal) .. " nap=" .. tostring(G.forceNap))
   end
   if f == 37 then
     V.fakeMouse = nil; H.kbFocus = nil
@@ -965,6 +967,7 @@ function love.draw()
     local _, a = F.scene(screenTab or G.tab)
     local _, b = F.scene(G.tab)
     prevTab, screenTab, screenT = screenTab, G.tab, 0
+    for i = #FX.locks, 1, -1 do if FX.locks[i].map then table.remove(FX.locks, i) end end -- map readouts stay on the map
     screenDir = (b or 1) >= (a or 1) and 1 or -1
     screenDur = math.min(0.6, 0.36 + 0.04 * math.abs((b or 1) - (a or 1)))
   end

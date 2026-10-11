@@ -237,7 +237,7 @@ local function choice()
       for pos, k in ipairs(ch.order) do
         if not ch.flipped[k] then
           ch.flipped[k] = true
-          G.revealFX(ch.cands[k].r, G.cardX(k), 360)
+          G.revealFX(ch.cands[k].r, G.cardX(k), 360, nil, nil, 220, 300)
         end
       end
       ch.t = last + 0.2

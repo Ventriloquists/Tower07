@@ -9,7 +9,7 @@ local GENS, UPGRADES, ACH, RAR = D.GENS, D.UPGRADES, D.ACH, D.RARITY
 local R = 1.15
 local S
 
-G.OX, G.OY, G.CORE_R = 640, 344, 68
+G.OX, G.OY, G.CORE_R = 640, 262, 40 -- the tower crown (ui/reactor.lua)
 G.MW, G.MH, G.TX, G.TY = 24, 15, 12, 8
 G.TIDX = (G.TY - 1) * G.MW + G.TX
 G.BUYMODES = {1, 10, 100, "MAX"}
@@ -548,37 +548,18 @@ function G.flipTime(ch, pos)
 end
 function G.choiceReady(ch) return ch.t >= G.flipTime(ch, 3) + 0.15 end
 
-function G.revealFX(r, x, y, picked, label)
+-- drone reveals speak the SIGNAL LOCK language too: the lock frames the card (w, h), the tag decodes the class.
+-- Drone classes map onto the loot ladder: STD 1, ADV 2, ELITE 4, PROTO 5, OMEGA 6, PRISM 7.
+local DRONE_TIER = {1, 2, 4, 5, 6, 7}
+function G.revealFX(r, x, y, picked, label, w, h)
   local c = C[RAR[r].col]
-  local k = picked and 0.6 or 1
-  if r <= 2 then
-    FX.burst(x, y, 20 * r, c, 220)
-    FX.play(r == 1 and "tick" or "buy", r == 1 and 0.7 or 1.2)
-  elseif r == 3 then
-    FX.burst(x, y, 70 * k, c, 380, 2.5)
-    FX.ray(x, y, c, 1.4, 260)
-    FX.flashTo(c, 0.25 * k)
-    FX.shake = math.max(FX.shake, 7)
-    FX.play("unlock")
-  elseif r == 4 then
-    FX.burst(x, y, 140 * k, c, 520, 3)
-    FX.ray(x, y, c, 1.8, 360)
-    FX.flashTo(c, 0.3 * k)
-    FX.shake = math.max(FX.shake, 9)
-    FX.lootSound(1)
-    if not picked then G.rankBanner = {t = 0, title = "PROTO-CLASS SIGNAL", text = "A prototype drone is in the batch. Choose wisely.", c = C.red} end
-  elseif r == 5 then
-    FX.burst(x, y, 180 * k, c, 620, 3)
-    FX.ray(x, y, c, 2.6, 560)
-    FX.flashTo(c, 0.55 * k)
-    FX.shake = math.max(FX.shake, 16)
-    FX.lootSound(2)
-    FX.slam(label or RAR[r].name, x, y, c)
-    if not picked then G.rankBanner = {t = 0, title = "!! OMEGA // MYTHIC DRONE !!", text = "One in three hundred. The tower remembers this day.", c = C.gold} end
-  else
-    -- PRISM: the whole screen loses it
-    FX.prismEvent(label or RAR[r].name, x, y)
-  end
+  local tier = DRONE_TIER[r] or r
+  FX.lock(x, y, tier, c, (label or RAR[r].name) .. (tier >= 4 and " CLASS" or ""), "", {compact = true, w = w or 120, h = h or 120})
+  if r <= 2 then FX.play(r == 1 and "tick" or "buy", r == 1 and 0.7 or 1.2)
+  elseif r == 3 then FX.play("unlock")
+  elseif r == 4 then FX.lootSound(1)
+  elseif r == 5 then FX.lootSound(2)
+  else FX.prismEvent(label or RAR[r].name, x, y) end
 end
 
 function G.pickCandidate(k)
@@ -591,7 +572,7 @@ function G.pickCandidate(k)
   for j, o in ipairs(ch.cands) do if j ~= k then scrap = scrap + math.ceil(RAR[o.r].scrap * 0.5) end end
   S.parts = S.parts + scrap
   table.remove(G.choiceQueue, 1)
-  G.revealFX(d.r, G.cardX(k), 360, true)
+  G.revealFX(d.r, G.cardX(k), 360, true, nil, 220, 300)
   FX.toast(G.droneLabel(d) .. " JOINS THE FLEET", RAR[d.r].name .. " MK" .. d.mk .. " // " .. table.concat(d.traits, " + ") ..
     "  //  +" .. scrap .. " parts from recycled units", C[RAR[d.r].col])
 end
@@ -1777,7 +1758,7 @@ function G.update(dt)
       end
       if before < ft and ch.t >= ft then
         ch.flipped[k] = true
-        G.revealFX(r, G.cardX(k), 360)
+        G.revealFX(r, G.cardX(k), 360, nil, nil, 220, 300)
       end
     end
   end

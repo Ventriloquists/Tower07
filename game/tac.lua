@@ -347,25 +347,20 @@ function G.openCrate(k, quiet, sx, sy)
     if c.r >= 7 or prismDrone then FX.prismEvent(prismDrone and "PRISM" or L.name, 640, 360) end
     return
   end
-  FX.burst(px, py, 12 + c.r * 14, col, 160 + c.r * 60, 2)
-  for i, l in ipairs(lines) do
-    FX.floater(px, py - 16 - (i - 1) * 16, l, i == 1 and col or C.white, i == 1 and H.fonts.s or H.fonts.xs, 1.6 + c.r * 0.2)
+  -- SIGNAL LOCK: the headline is the best thing inside (prism drone > module > materials), the rest are detail lines
+  local head, rest = lines[2], {}
+  if prismDrone then head = lines[#lines]
+  elseif bestMod then
+    for _, l in ipairs(lines) do if l:find(G.modDef(bestMod.t).name:upper(), 1, true) then head = l end end
   end
-  if c.r >= 3 and c.r < 7 then FX.ray(px, py, col, 0.8 + c.r * 0.3, 80 + c.r * 50 + (c.r >= 5 and 80 or 0)) end
-  if c.r >= 4 then
-    FX.flashTo(col, 0.15 * (c.r - 3))
-    FX.shake = math.max(FX.shake, (c.r - 3) * 7)
-    FX.wave(px, py, 10, col, 300, 0.8)
-  end
-  if c.r >= 5 then
-    G.rankBanner = {t = 0, title = L.name .. " CACHE", text = table.concat(lines, "   //   "), c = col}
-    if G.meme and c.r == 5 then G.meme("legendary") elseif G.meme and c.r == 6 then G.meme("mythic") end
-    if c.r >= 7 or prismDrone then FX.prismEvent(prismDrone and "PRISM" or L.name, px, py)
-    elseif c.r == 6 then FX.slam(L.name .. "!", px, py, col); FX.lootSound(2)
-    else FX.lootSound(1) end
-  else
-    FX.play("crate", 0.8 + c.r * 0.12)
-  end
+  for _, l in ipairs(lines) do if l ~= head and #rest < 3 then rest[#rest + 1] = l end end
+  local isPrism = c.r >= 7 or prismDrone
+  FX.lock(px, py, isPrism and 7 or c.r, col, L.name .. " CACHE", head, {lines = rest, map = true})
+  if G.meme and c.r == 5 then G.meme("legendary") elseif G.meme and c.r == 6 then G.meme("mythic") end
+  if isPrism then FX.prismEvent(prismDrone and "PRISM" or L.name, px, py)
+  elseif c.r == 6 then FX.lootSound(2)
+  elseif c.r == 5 then FX.lootSound(1)
+  else FX.play("crate", 0.8 + c.r * 0.12) end
 end
 function G.openAllCrates()
   local S = G.S

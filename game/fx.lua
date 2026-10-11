@@ -358,36 +358,6 @@ function FX.lootSound(tier)
   end
 end
 
--- PRISM: the screen completely escalates (drawn above everything by FX.drawPrism)
-FX.prism = nil
-function FX.prismEvent(label, x, y)
-  -- the takeover is special: at most once every 45 s, extra drops in between only get a slam
-  local now = love.timer.getTime()
-  if FX.prism or now - (FX.prismLast or -1e9) < 45 then
-    if not FX.prism then FX.slam((label or "PRISM") .. "!", x or 640, y or 360, C.holo) end
-    return
-  end
-  FX.prismLast = now
-  if FX.onPrism then FX.onPrism() end
-  FX.prism = {t = 0, label = label or "PRISM", x = x or 640, y = y or 360, max = 5.2, rings = 0}
-  FX.lootSound(3)
-  FX.flashTo({1, 1, 1}, 1)
-  FX.shake = math.max(FX.shake, 40)
-  if not FX.reduced then FX.slow = math.max(FX.slow, 0.9) end
-  for k = 0, 5 do FX.ray(x or 640, y or 360, FX.hue(k / 6), 3.5 + k * 0.2, 500 + k * 90, true) end
-  -- rainbow confetti raining over the whole screen
-  local P = FX.particles
-  for _ = 1, math.floor(320 * math.max(0.5, FX.density)) do
-    P[#P + 1] = {x = rnd(-40, 1320), y = rnd(-400, -10), vx = rnd(-60, 60), vy = rnd(80, 300), life = 0, max = rnd(2.5, 4.5),
-      c = FX.hue(rnd(0, 1)), s = rnd(3, 7), g = 140, chip = true, spin = rnd(-10, 10)}
-  end
-  for _ = 1, math.floor(140 * math.max(0.5, FX.density)) do
-    local a = rnd(0, TAU)
-    local sp = rnd(300, 900)
-    P[#P + 1] = {x = x or 640, y = y or 360, vx = math.cos(a) * sp, vy = math.sin(a) * sp, life = 0, max = rnd(1.2, 2.4),
-      c = FX.hue(rnd(0, 1)), s = rnd(3, 6), g = 500, chip = true, spin = rnd(-14, 14)}
-  end
-end
 -- jackpot moment: slam title + chip fountain + a beat of slow motion
 FX.slams, FX.slow = {}, 0
 function FX.slam(text, x, y, c, prism)
@@ -437,11 +407,10 @@ function FX.update(dt)
   end
   for _, t in ipairs(FX.toasts) do t.life = t.life + dt end
   if FX.prism then
-    local pz = FX.prism
-    pz.t = pz.t + dt
-    if pz.t > pz.rings * 0.45 and pz.t < 3 then pz.rings = pz.rings + 1; FX.shake = math.max(FX.shake, 14); FX.play("boom", 0.5 + pz.rings * 0.08, 0.5) end
-    if pz.t >= pz.max then FX.prism = nil end
+    FX.prism.t = FX.prism.t + dt
+    if FX.prism.t >= FX.prism.max then FX.prism = nil end
   end
+  FX.updateLocks(dt)
   for i = #FX.slams, 1, -1 do
     local s = FX.slams[i]
     s.t = s.t + dt
@@ -567,89 +536,219 @@ function FX.drawParticles()
 end
 
 -- the PRISM takeover, drawn above everything else
-function FX.drawPrism()
-  local pz = FX.prism
-  if not pz then return end
-  local t = pz.t
-  local env = math.min(1, t / 0.15) * (t > pz.max - 1.2 and math.max(0, (pz.max - t) / 1.2) or 1)
-  local x0, y0, x1, y1 = V.extents()
-  local W, Hh = x1 - x0, y1 - y0
-  local cx, cy = 640, 330
-  -- darken + rainbow tint
-  col({0, 0, 0}, 0.55 * env); lg.rectangle("fill", x0, y0, W, Hh)
-  lg.setBlendMode("add")
-  col(FX.hue(t * 0.5), 0.09 * env); lg.rectangle("fill", x0, y0, W, Hh)
-  -- glitch bars
-  if t < 1.6 then
-    for k = 1, 7 do
-      local by = y0 + ((k * 97 + math.floor(t * 24) * 53) % 1000) / 1000 * Hh
-      col(FX.hue(k / 7 + t), 0.16 * env)
-      lg.rectangle("fill", x0 + rnd(-40, 40), by, W, rnd(4, 22))
+----------------------------------------------------------------------
+-- SIGNAL LOCK: the loot language. A reticle snaps onto the drop, the name decodes, a readout pins beside it.
+-- tier 1..7 (common .. prism) scales lock time, decode length and how much frame the moment gets:
+--   1-2 reticle + quick tag   3-4 decode   5 + a scan line across the screen   6 + gold viewport brackets
+--   7 (prism) + one holographic sweep over the HUD, rainbow decode, holo brackets.
+-- No shake, no flash, a handful of particles. Drawn above everything by FX.drawPrism.
+----------------------------------------------------------------------
+FX.locks, FX.scans, FX.frame = {}, {}, nil
+local GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#/%+"
+local function scramble(s, p, seed)
+  if p >= 1 then return s end
+  local n = #s
+  local shown = math.floor(n * p)
+  local out = {s:sub(1, shown)}
+  for i = shown + 1, n do
+    local ch = s:sub(i, i)
+    if ch == " " then out[#out + 1] = " " else
+      local k = (seed * 31 + i * 17) % #GLYPHS + 1
+      out[#out + 1] = GLYPHS:sub(k, k)
     end
   end
-  -- sweeping rainbow beams
-  lg.setLineWidth(5)
-  for k = 0, 11 do
-    local a = t * 0.7 + k / 12 * TAU
-    col(FX.hue(k / 12 + t * 0.3), 0.22 * env)
-    lg.line(cx, cy, cx + math.cos(a) * 1600, cy + math.sin(a) * 1600)
+  return table.concat(out)
+end
+
+-- opts: compact = tag above the target (for cards that already show the item), lines = extra detail lines
+function FX.lock(x, y, tier, c, kind, name, opts)
+  opts = opts or {}
+  tier = math.max(1, math.min(7, tier))
+  -- crowded (open-all, fiestas): drop the oldest quiet locks first
+  while #FX.locks >= 5 do
+    local drop = 1
+    for i, l in ipairs(FX.locks) do if l.tier < FX.locks[drop].tier then drop = i end end
+    table.remove(FX.locks, drop)
   end
-  -- shockwave rings
-  for k = 0, pz.rings - 1 do
-    local age = t - k * 0.45
-    if age > 0 and age < 1.4 then
-      lg.setLineWidth(8 * (1 - age / 1.4) + 1)
-      col(FX.hue(k * 0.17 + t * 0.2), (1 - age / 1.4) * 0.8 * env)
-      lg.circle("line", cx, cy, 40 + age * 820, 96)
+  local l = {x = x, y = y, tier = tier, c = c, kind = kind or "", name = name or "", lines = opts.lines or {},
+    compact = opts.compact, prism = tier >= 7, t = 0, bw = opts.w, bh = opts.h, map = opts.map}
+  l.lockT = 0.1 + 0.03 * tier
+  l.decT = tier <= 2 and 0 or 0.12 * tier
+  l.hold = opts.compact and (0.7 + 0.15 * tier) or ((tier <= 2 and 0.9 or 1.5 + 0.25 * tier) + #l.lines * 0.3)
+  -- readouts reserve their real rectangle when they open; a new card that would overlap one already up is
+  -- pushed below it (or above, near the bottom edge), so cards never sit on top of each other
+  if not opts.compact then
+    local _, _, x1 = V.extents()
+    l.side = (x > (x1 - 300)) and -1 or 1
+    l.cardH = 38 + #l.lines * 14
+    local s = 13 + tier * 2
+    local base = y - s - 34
+    local moved = true
+    while moved do
+      moved = false
+      for _, o in ipairs(FX.locks) do
+        if not o.compact and o.cardY and math.abs(o.x - x) < 360 and o.side == l.side
+          and base < o.cardY + o.cardH + 8 and base + l.cardH + 8 > o.cardY then
+          base = o.cardY + o.cardH + 8
+          moved = true
+        end
+      end
     end
+    if base + l.cardH > 620 then base = 620 - l.cardH end
+    l.cardY = math.max(58, base)
   end
+  l.max = l.lockT + l.decT + l.hold + 0.3
+  FX.locks[#FX.locks + 1] = l
+  FX.play("tick", 1.5 + tier * 0.06, 0.5)
+  if tier >= 5 and not FX.reduced then FX.scans[#FX.scans + 1] = {x = x, y = y, t = 0, c = c} end
+  if tier >= 6 then FX.frame = {t = 0, max = 2.2, c = c, holo = tier >= 7} end
+end
+
+function FX.updateLocks(dt)
+  for i = #FX.locks, 1, -1 do
+    local l = FX.locks[i]
+    l.t = l.t + dt
+    if not l.landed and l.t >= l.lockT then
+      l.landed = true
+      if l.tier >= 3 then FX.burst(l.x, l.y, 4 + l.tier * 2, l.c, 110, 1.5) end
+    end
+    if l.t >= l.max then table.remove(FX.locks, i) end
+  end
+  for i = #FX.scans, 1, -1 do
+    local s = FX.scans[i]
+    s.t = s.t + dt
+    if s.t > 0.7 then table.remove(FX.scans, i) end
+  end
+  if FX.frame then
+    FX.frame.t = FX.frame.t + dt
+    if FX.frame.t >= FX.frame.max then FX.frame = nil end
+  end
+end
+
+local function brackets(x, y, s, l, c, a, sy)
+  sy = sy or s
+  col(c, a)
+  lg.line(x - s, y - sy + l, x - s, y - sy, x - s + l, y - sy)
+  lg.line(x + s - l, y - sy, x + s, y - sy, x + s, y - sy + l)
+  lg.line(x - s, y + sy - l, x - s, y + sy, x - s + l, y + sy)
+  lg.line(x + s - l, y + sy, x + s, y + sy, x + s, y + sy - l)
+end
+
+local function drawLock(l)
+  local Fo = H.fonts
+  local now = love.timer.getTime()
+  local c = l.prism and C.holo or l.c
+  local fadeOut = math.max(0, math.min(1, (l.max - l.t) / 0.3))
+  -- reticle closes in, then holds
+  local q = math.min(1, l.t / l.lockT)
+  local e = 1 - (1 - q) ^ 3
+  local s = 44 - (44 - (13 + l.tier * 2)) * e
+  local sy = s
+  if l.bw then -- framing a card: lock onto its outline
+    local pad = 30 - 24 * e
+    s, sy = l.bw / 2 + pad, l.bh / 2 + pad
+  end
+  lg.setLineWidth(2)
+  brackets(l.x, l.y, s, l.bw and 14 or 7, c, (0.4 + 0.6 * e) * fadeOut, sy)
+  if l.landed and l.t - l.lockT < 0.15 then brackets(l.x, l.y, s + 4, l.bw and 10 or 5, C.white, (1 - (l.t - l.lockT) / 0.15) * 0.8, sy + 4) end
   lg.setLineWidth(1)
-  -- holographic border
-  local bw = 22 + 8 * math.sin(t * 6)
-  for k = 0, 23 do
-    local f = k / 24
-    col(FX.hue(f + t * 0.6), 0.5 * env)
-    lg.rectangle("fill", x0 + f * W, y0, W / 24 + 1, bw)
-    lg.rectangle("fill", x1 - (f + 1 / 24) * W, y1 - bw, W / 24 + 1, bw)
-    lg.rectangle("fill", x0, y0 + f * Hh, bw, Hh / 24 + 1)
-    lg.rectangle("fill", x1 - bw, y1 - (f + 1 / 24) * Hh, bw, Hh / 24 + 1)
+  if not l.landed then return end
+  -- decode progress
+  local p = l.decT > 0 and math.min(1, (l.t - l.lockT) / l.decT) or 1
+  local seed = math.floor(now * 25)
+  local name = scramble(l.name, p, seed)
+  local open = math.min(1, (l.t - l.lockT) / 0.12)
+  local a = fadeOut
+  if l.compact then
+    -- tag centred above the target
+    local txt = scramble(l.kind, p, seed)
+    local tw = math.max(Fo.xs:getWidth(l.kind), 40) + 20
+    local tx, ty = l.x - tw * open / 2, l.y - sy - 26
+    col(C.bg, 0.9 * a); lg.rectangle("fill", tx, ty, tw * open, 18)
+    col(c, a); lg.rectangle("fill", tx, ty + 16, tw * open, 2)
+    if open >= 1 then lg.setFont(Fo.xs); col(c, a); lg.printf(txt, tx, ty + 3, tw, "center") end
+    return
   end
-  -- core flare
-  col({1, 1, 1}, 0.8 * env * (0.6 + 0.4 * math.sin(t * 10))); lg.circle("fill", cx, cy, 18 + 10 * math.sin(t * 8), 32)
-  lg.setBlendMode("alpha")
-  -- giant letters slam in one by one
-  local f = H.fonts.huge
-  local label = pz.label
-  local sc = 2.4
-  local total = f:getWidth(label) * sc
-  local lx = cx - total / 2
-  for i = 1, #label do
-    local ch = label:sub(i, i)
-    local cw = f:getWidth(ch) * sc
-    local at = 0.25 + (i - 1) * 0.09
-    if t >= at then
-      local q = math.min(1, (t - at) / 0.12)
-      local s = sc * (2.2 - 1.2 * q)
-      local j = (1 - q) * 6 + 2 * env
-      local px, py = lx + cw / 2 + rnd(-j, j), cy - 40 + rnd(-j, j) + math.sin(t * 4 + i) * 6
-      lg.push(); lg.translate(px, py); lg.scale(s)
-      lg.setFont(f)
-      local hw, hh = f:getWidth(ch) / 2, f:getHeight() / 2
-      lg.setBlendMode("add")
-      col({1, 0.1, 0.2}, 0.6 * env); lg.print(ch, -hw - 2.5, -hh)
-      col({0.1, 0.5, 1}, 0.6 * env); lg.print(ch, -hw + 2.5, -hh)
-      lg.setBlendMode("alpha")
-      col(FX.hue(i * 0.12 + t * 0.6), env); lg.print(ch, -hw, -hh)
-      lg.pop()
+  -- leader line and readout card beside the target
+  local side = l.side or 1
+  local ax, ay = l.x + side * s, l.y - s
+  local lx, ly = ax + side * 22, ay - 20
+  col(c, 0.8 * a); lg.line(ax, ay, lx, ly)
+  lg.setFont(Fo.s)
+  local w = math.max(Fo.s:getWidth(l.name), Fo.xs:getWidth(l.kind))
+  for _, d in ipairs(l.lines) do w = math.max(w, Fo.xs:getWidth(d)) end
+  w = math.min(w + 22, 340)
+  local h = 38 + #l.lines * 14
+  local cx = side > 0 and lx or lx - w * open
+  local cy = l.cardY or (ly - 14)
+  -- the leader always reaches its card, even when the card was pushed away from the drop
+  if math.abs(cy + 10 - ly) > 2 then col(c, 0.8 * a); lg.line(lx, ly, lx, cy + 10) end
+  col(C.bg, 0.93 * a); lg.rectangle("fill", cx, cy, w * open, h)
+  col(c, a); lg.rectangle("fill", side > 0 and cx or cx + w * open - 2, cy, 2, h)
+  col(C.faint, a); lg.rectangle("line", cx + 0.5, cy + 0.5, w * open - 1, h - 1)
+  if open < 1 then return end
+  lg.setFont(Fo.xs); col(c, a); lg.print(scramble(l.kind, math.min(1, p * 2), seed), cx + 11, cy + 5)
+  lg.setFont(Fo.s); col(p < 1 and C.dim or C.white, a); lg.print(H.fit(Fo.s, name, w - 20), cx + 11, cy + 18)
+  if p >= 1 then
+    lg.setFont(Fo.xs)
+    for k, d in ipairs(l.lines) do
+      local la = math.min(1, (l.t - l.lockT - l.decT - (k - 1) * 0.08) / 0.15)
+      if la > 0 then col(C.dim, a * la); lg.print(H.fit(Fo.xs, d, w - 20), cx + 11, cy + 22 + k * 14) end
     end
-    lx = lx + cw
   end
-  if t > 0.9 then
-    local a = math.min(1, (t - 0.9) * 3) * env
-    local sub = "HOLOGRAPHIC DROP  //  REALITY IS REFRACTING"
-    lg.setFont(H.fonts.l); col(FX.hue(t * 0.4), a)
-    lg.printf(sub, x0, cy + 70, W, "center")
+end
+
+-- the PRISM moment, now inside the same language: rainbow decode, holo brackets, one sweep over the HUD
+FX.prism = nil
+function FX.prismEvent(label, x, y)
+  if FX.onPrism then FX.onPrism() end
+  FX.prism = {t = 0, max = 2.4, label = label or "PRISM"}
+  FX.frame = {t = 0, max = 2.4, c = C.holo, holo = true}
+  FX.lootSound(3)
+end
+
+-- above everything: locks, scan lines, the viewport frame and the prism sweep
+function FX.drawPrism()
+  local x0, y0, x1, y1 = V.extents()
+  -- prism: one diagonal holographic band crosses the whole screen
+  local pz = FX.prism
+  if pz and not FX.reduced and pz.t < 1.4 then
+    local p = pz.t / 1.4
+    local bx = x0 - 400 + p * (x1 - x0 + 800)
+    lg.setBlendMode("add")
+    for k = 0, 7 do
+      col(FX.hue(k / 8 + pz.t * 0.4), 0.10 * math.sin(p * math.pi))
+      local ox = bx + k * 26
+      lg.polygon("fill", ox, y1, ox + 26, y1, ox + 26 + (y1 - y0) * 0.5, y0, ox + (y1 - y0) * 0.5, y0)
+    end
+    lg.setBlendMode("alpha")
   end
+  -- legendary+: a scan line sweeps out from the drop to both edges
+  for _, s in ipairs(FX.scans) do
+    local p = s.t / 0.7
+    local d = (1 - (1 - p) ^ 2) * (x1 - x0)
+    local a = 0.55 * (1 - p)
+    col(s.c, a)
+    lg.rectangle("fill", s.x - d, y0, 1.5, y1 - y0)
+    lg.rectangle("fill", s.x + d, y0, 1.5, y1 - y0)
+  end
+  -- mythic+: brackets close in on the corners of the screen
+  local fr = FX.frame
+  if fr then
+    local inn = FX.reduced and 1 or math.min(1, fr.t / 0.3)
+    local a = math.min(1, (fr.max - fr.t) / 0.5)
+    local m = 10 + (1 - inn) * 30
+    local L = 70
+    lg.setLineWidth(3)
+    local cc = fr.holo and C.holo or fr.c
+    col(cc, a)
+    lg.line(x0 + m, y0 + m + L, x0 + m, y0 + m, x0 + m + L, y0 + m)
+    lg.line(x1 - m - L, y0 + m, x1 - m, y0 + m, x1 - m, y0 + m + L)
+    lg.line(x0 + m, y1 - m - L, x0 + m, y1 - m, x0 + m + L, y1 - m)
+    lg.line(x1 - m - L, y1 - m, x1 - m, y1 - m, x1 - m, y1 - m - L)
+    lg.setLineWidth(1)
+  end
+  for _, l in ipairs(FX.locks) do drawLock(l) end
 end
 
 return FX
