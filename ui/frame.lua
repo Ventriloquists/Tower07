@@ -104,16 +104,21 @@ function F.background()
   -- survey grid with slight parallax toward the cursor
   local mx, my = V.mouse()
   local px = H.reduced and 0 or (mx - 640) / 640 * -6
+  -- parallax camera: the grid drifts as you travel along the spine, so stations read as places side by side
+  local _, st = F.scene(G.tab)
+  local cam = H.tween("cam", -((st or 1) - 1) * 220, 5) * 0.4
+  local camMinor, camMajor = cam % 40 - 40, cam % 160 - 160
   local py = H.reduced and 0 or (my - 360) / 360 * -4
   -- the grid is texture, not content: barely there, with registration crosses only on the major lines
   col(C.faint, 0.07)
-  for x = math.floor(x0 / 40) * 40, x1 + 40, 40 do lg.line(x + px, y0, x + px, y1) end
+  for x = math.floor(x0 / 40) * 40, x1 + 80, 40 do lg.line(x + px + camMinor, y0, x + px + camMinor, y1) end
   for y = math.floor(y0 / 40) * 40, y1 + 40, 40 do lg.line(x0, y + py, x1, y + py) end
   col(C.dim, 0.16)
-  for x = math.floor(x0 / 160) * 160, x1 + 160, 160 do
+  for x = math.floor(x0 / 160) * 160, x1 + 320, 160 do
     for y = math.floor(y0 / 160) * 160, y1 + 160, 160 do
-      lg.line(x + px - 3, y + py, x + px + 3, y + py)
-      lg.line(x + px, y + py - 3, x + px, y + py + 3)
+      local gx = x + px + camMajor
+      lg.line(gx - 3, y + py, gx + 3, y + py)
+      lg.line(gx, y + py - 3, gx, y + py + 3)
     end
   end
   -- film grain keeps the large dark areas from looking flat
@@ -440,53 +445,123 @@ function F.macDock()
   end
 end
 
--- HUD dock: one row of screens; a lit indicator glides to the active one and a light column rises from it
+-- THE SPINE: the tower's stations on one transit line. Each station reports what is happening there right now,
+-- so you know where to go before you go. The active marker travels along the line when you switch.
+-- level: "alert" (red, act now), "attn" (amber, something to collect), nil (calm readout)
+function F.context(key)
+  local S = G.S
+  if key == "core" then
+    if S.perkPoints > 0 then return S.perkPoints .. " PERK" .. (S.perkPoints > 1 and "S" or ""), "attn" end
+    return "+" .. fmt(G.getCps()) .. "/S"
+  elseif key == "build" then
+    local n = 0
+    for _, u in ipairs(G.availableUpgrades()) do if S.stardust >= u.cost then n = n + 1 end end
+    if n > 0 then return n .. " TECH READY", "attn" end
+    local units = 0
+    for i = 1, #D.GENS do units = units + (S.gens[i] or 0) end
+    return fmt(units) .. " UNITS"
+  elseif key == "rigs" then
+    local full, on, sum = 0, 0, 0
+    for i, r in ipairs(S.rigs) do
+      if r.on then on = on + 1; sum = sum + math.min(1, r.tank / G.rigCap(i)); if r.tank >= G.rigCap(i) then full = full + 1 end end
+    end
+    if full > 0 then return full .. " AT PEAK", "attn" end
+    if on == 0 then return "OFFLINE" end
+    return math.floor(sum / on * 100) .. "% TANKS"
+  elseif key == "hangar" then
+    if #G.choiceQueue > 0 then return "PICK DRONE", "attn" end
+    if S.tokens > 0 and #S.drones < G.bayCap() then return S.tokens .. " TOKENS", "attn" end
+    return #S.drones .. "/" .. G.bayCap() .. " DRONES"
+  elseif key == "map" then
+    if G.boss and G.boss() then return "MOTHERSHIP", "alert" end
+    for _, e in ipairs(G.enemies) do if e.raid > 0 then return "RAID", "alert" end end
+    if S.bossDown then return "ZONE CLEAR", "attn" end
+    if #S.crateList > 0 then return #S.crateList .. " CRATE" .. (#S.crateList > 1 and "S" or ""), "attn" end
+    return "ZONE " .. S.zone
+  elseif key == "ops" then
+    local n = (G.dailyPending and 1 or 0) + G.passReady()
+    for _, d in ipairs(S.directives) do if G.dirProgress(d) >= d.target then n = n + 1 end end
+    if n > 0 then return n .. " READY", "attn" end
+    return "TIER " .. S.passTier
+  elseif key == "nova" then
+    local g = G.dmGain()
+    if g >= math.max(1, S.dmTotal * 0.5) then return "+" .. fmt(g) .. " CD", "alert" end
+    return fmt(S.dm) .. " CD"
+  elseif key == "archive" then
+    local n = G.unclaimedLogs()
+    if n > 0 then return n .. " REWARD" .. (n > 1 and "S" or ""), "attn" end
+    return G.achCount .. "/" .. #D.ACH
+  end
+  return ""
+end
+
 local function hudDock()
   local Fo = H.fonts
   local x0, _, x1, y1 = V.extents()
   local y = F.DOCK
-  col(C.bg, 0.96); lg.rectangle("fill", x0, y, x1 - x0, y1 - y)
+  local n = #F.SCENES
+  local w = 1280 / n
+  local ly = y + 20 -- the line
+  col(C.bg, 0.97); lg.rectangle("fill", x0, y, x1 - x0, y1 - y)
   col(C.faint, 1); lg.line(x0, y, x1, y)
-  local badges = F.badges()
-  local w = 1280 / #F.SCENES
   local _, active = F.scene(G.tab)
   active = active or 1
-  -- indicator glides between tabs (position and a slight stretch while moving)
-  local ix = H.tween("dockInd", (active - 1) * w, H.MO.base)
-  local stretch = math.min(40, math.abs((active - 1) * w - ix) * 0.25)
+  -- the line itself: lit up to the last unlocked station, dashed beyond it
+  local lastOpen = 1
+  for k, s in ipairs(F.SCENES) do if G.unlocked(s[1]) then lastOpen = k end end
+  col(C.dim, 0.7); lg.rectangle("fill", x0, ly, (lastOpen - 0.5) * w - x0, 1)
+  col(C.faint, 1)
+  for dx = (lastOpen - 0.5) * w, x1, 8 do lg.rectangle("fill", dx, ly, 4, 1) end
+  -- the travelling marker (eased along the line, it leaves a short light trail while moving)
+  local mx = H.tween("spineX", (active - 0.5) * w, H.MO.base)
+  local target = (active - 0.5) * w
   local glow = F.glowMesh()
-  col(C.line, 0.13); love.graphics.draw(glow, ix + w / 2, y, 0, w * 0.55, 46)
-  col(C.line, 0.07); lg.rectangle("fill", ix + 2, y + 1, w - 4, 63)
-  col(C.white); lg.rectangle("fill", ix + 18 - stretch / 2, y, w - 36 + stretch, 2)
+  col(C.line, 0.14); love.graphics.draw(glow, mx, ly, 0, w * 0.5, 40)
+  if math.abs(target - mx) > 2 then
+    local a, b = math.min(mx, target), math.max(mx, target)
+    col(C.line, 0.5); lg.rectangle("fill", a, ly - 0.5, b - a, 2)
+  end
   for k, s in ipairs(F.SCENES) do
     local key = s[1]
     local x = (k - 1) * w
+    local cx = x + w / 2
     local on = G.tab == key
     local open, need = G.unlocked(key)
     local hov = H.mouseIn(x, y, w, 64)
-    local t = H.hoverT(x, y, w, 64, hov or on)
-    if hov and not on then col(C.line, 0.04); lg.rectangle("fill", x + 2, y + 1, w - 4, 63) end
-    if k > 1 then col(C.faint, 0.6); lg.line(x, y + 16, x, y + 48) end
-    local cx = x + w / 2
-    local r, g, b = H.lerpC(C.dim, on and C.white or C.line, t)
-    local ic = not open and C.red or {r, g, b}
-    local lift = open and 2 * t or 0
-    I.draw(open and s[3] or "lock", cx, y + 23 - lift, 10, ic, open and 1 or 0.6)
-    lg.setFont(Fo.s); col(ic, open and 1 or 0.7)
-    lg.printf(open and s[2] or (need .. " LOGS"), x, y + 39 - lift * 0.5, w, "center")
-    -- the number key hint appears only where the eye already is (active or hovered tab)
-    if t > 0.02 then lg.setFont(Fo.xs); col(C.dim, t); lg.print(tostring(k), x + 10, y + 7) end
-    if open and key == "map" and G.boss and G.boss() then
-      local p = 0.5 + 0.5 * math.sin(G.time * 6)
-      col(C.red, 0.08 + 0.12 * p); lg.rectangle("fill", x + 2, y + 1, w - 4, 63)
-      H.brackets(x + 4, y + 3, w - 8, 59, 6, C.red, 0.5 + 0.5 * p)
-      lg.setFont(Fo.xs); col(C.red); lg.printf("MOTHERSHIP", x, y + 53, w, "center")
+    local t = H.hoverT(x, y, w, 64, hov)
+    local txt, level = "", nil
+    if open then txt, level = F.context(key) end
+    local lc = level == "alert" and C.red or (level == "attn" and C.orange or nil)
+    if hov and not on then col(C.line, 0.035); lg.rectangle("fill", x + 1, y + 1, w - 2, 63) end
+    -- station node: diamond. Active = solid and ringed; attention = amber core; locked = hollow, dim
+    local r = (on and 6 or 4.5) + t * 1.5
+    if level == "alert" and not H.reduced then
+      local p = (love.timer.getTime() * 1.2) % 1
+      col(C.red, 0.6 * (1 - p)); lg.polygon("line", cx, ly - r - p * 12, cx + r + p * 12, ly, cx, ly + r + p * 12, cx - r - p * 12, ly)
     end
-    if open and badges[key] then
-      local n, bc = badges[key][1], badges[key][2]
-      if n > 0 then H.badge(cx + 18, y + 12, n, bc) end
+    col(C.bg); lg.polygon("fill", cx, ly - r - 2, cx + r + 2, ly, cx, ly + r + 2, cx - r - 2, ly)
+    if on then
+      col(C.white); lg.polygon("fill", cx, ly - r, cx + r, ly, cx, ly + r, cx - r, ly)
+      col(C.line, 0.8); lg.polygon("line", cx, ly - r - 4, cx + r + 4, ly, cx, ly + r + 4, cx - r - 4, ly)
+    elseif open then
+      col(lc or C.dim, lc and 1 or (0.6 + 0.4 * t)); lg.polygon(lc and "fill" or "line", cx, ly - r, cx + r, ly, cx, ly + r, cx - r, ly)
+    else
+      col(C.faint); lg.polygon("line", cx, ly - r, cx + r, ly, cx, ly + r, cx - r, ly)
     end
-    if hov then H.setTip(s[2], open and s[4] or ("Unlocks at " .. need .. " log entries")) end
+    -- name with its icon, live readout below
+    I.draw(open and s[3] or "lock", cx - Fo.s:getWidth(s[2]) / 2 - 12, ly + 20, 6, on and C.white or (open and C.dim or C.faint), open and (0.7 + 0.3 * t) or 0.6)
+    lg.setFont(Fo.s)
+    local r2, g2, b2 = H.lerpC(C.dim, C.white, on and 1 or t)
+    if open then lg.setColor(r2, g2, b2, 1) else col(C.faint) end
+    lg.printf(s[2], x, ly + 12, w, "center")
+    lg.setFont(Fo.xs)
+    if open then
+      col(lc or C.dim, lc and 1 or 0.8); lg.printf(H.fit(Fo.xs, txt, w - 12), x, ly + 28, w, "center")
+    else
+      col(C.faint); lg.printf(need .. " LOGS", x, ly + 28, w, "center")
+    end
+    if t > 0.02 then lg.setFont(Fo.xs); col(C.dim, t); lg.print(tostring(k), x + 8, y + 5) end
+    if hov then H.setTip(s[2], open and (s[4] .. "  [" .. k .. "]") or ("Unlocks at " .. need .. " log entries")) end
     H.addHit(x, y, w, 64, function()
       if not open then
         FX.toast(s[2] .. " // LOCKED", "Collect " .. need .. " log entries to unlock (" .. G.achCount .. "/" .. need .. ").", C.red)

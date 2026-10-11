@@ -215,6 +215,42 @@ function G.claimAllLogs()
 end
 
 ----------------------------------------------------------------------
+-- Collect all: one command for every instant reward (daily supply, log rewards, signal tiers, finished
+-- directives, peaked rigs). Claims fire as a short cascade so each reward still lands on its own beat.
+----------------------------------------------------------------------
+G.cascade, G.cascadeT = {}, 0
+function G.collectables()
+  local S = G.S
+  local list = {}
+  if not G.dailyPending and S.daily.last ~= G.today() then list[#list + 1] = G.claimDaily end
+  if G.unclaimedLogs() > 0 then list[#list + 1] = G.claimAllLogs end
+  if S.passTier > S.passClaimed then list[#list + 1] = G.claimAllPass end
+  for i, d in ipairs(S.directives) do
+    if G.dirProgress(d) >= d.target then list[#list + 1] = function() G.claimDirective(i) end end
+  end
+  for i, r in ipairs(S.rigs) do
+    if r.on and r.tank >= G.rigCap(i) then list[#list + 1] = function() G.collectRig(i) end end
+  end
+  return list
+end
+function G.collectAll()
+  if #G.cascade > 0 then return false end
+  local list = G.collectables()
+  if #list == 0 then FX.play("err") return false end
+  for _, fn in ipairs(list) do G.cascade[#G.cascade + 1] = fn end
+  G.cascadeT = 0
+  return true
+end
+local function cascadeUpdate(dt)
+  if #G.cascade == 0 then return end
+  G.cascadeT = G.cascadeT - dt
+  if G.cascadeT <= 0 then
+    table.remove(G.cascade, 1)()
+    G.cascadeT = 0.14
+  end
+end
+
+----------------------------------------------------------------------
 -- Objectives tracker (claimables first, then the nearest goals)
 ----------------------------------------------------------------------
 function G.goals()
@@ -223,7 +259,7 @@ function G.goals()
   local function add(g) list[#list + 1] = g end
   if not G.dailyPending and S.daily.last ~= G.today() then
     add{icon = "event", title = "DAILY SUPPLY READY", text = "Day " .. G.dailyNextStreak() .. " of your shift streak", c = C.orange,
-      ready = true, label = "CLAIM", fn = G.claimDaily}
+      ready = true, claim = true, label = "CLAIM", fn = G.claimDaily}
   end
   if S.perkPoints > 0 then
     add{icon = "perk", title = "PERK READY x" .. S.perkPoints, text = "Choose an overclock upgrade", c = C.gold, ready = true,
@@ -232,23 +268,23 @@ function G.goals()
   local nl = G.unclaimedLogs()
   if nl > 0 then
     add{icon = "archive", title = nl .. " LOG REWARD" .. (nl > 1 and "S" or ""), text = "Parts, hydro and tokens", c = C.orange,
-      ready = true, label = "CLAIM", fn = G.claimAllLogs}
+      ready = true, claim = true, label = "CLAIM", fn = G.claimAllLogs}
   end
   if S.passTier > S.passClaimed then
     local t = S.passClaimed + 1
     add{icon = "xp", title = "SIGNAL TRACK TIER " .. t, text = D.passReward(t).text, c = C.orange, ready = true,
-      label = "CLAIM", fn = G.claimPass}
+      claim = true, label = "CLAIM", fn = G.claimPass}
   end
   for i, d in ipairs(S.directives) do
     if G.dirProgress(d) >= d.target then
       add{icon = "ops", title = "DIRECTIVE COMPLETE", text = G.dirText(d), c = C.orange, ready = true,
-        label = "CLAIM", fn = function() G.claimDirective(i) end}
+        claim = true, label = "CLAIM", fn = function() G.claimDirective(i) end}
     end
   end
   for i, r in ipairs(S.rigs) do
     if r.on and r.tank >= G.rigCap(i) then
       add{icon = "rigs", title = "RIG R" .. i .. " AT PEAK", text = "Collect now: +25% bonus", c = C.orange, ready = true,
-        label = "COLLECT", fn = function() G.collectRig(i) end}
+        claim = true, label = "COLLECT", fn = function() G.collectRig(i) end}
     end
   end
   if S.bossDown then
@@ -306,6 +342,7 @@ end
 ----------------------------------------------------------------------
 function G.metaUpdate(dt)
   local S = G.S
+  cascadeUpdate(dt)
   -- pass tiers
   while S.sxp >= G.passNeed(S.passTier + 1) do
     S.sxp = S.sxp - G.passNeed(S.passTier + 1)

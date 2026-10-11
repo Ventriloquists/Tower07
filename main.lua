@@ -43,7 +43,7 @@ local holdHit, holdT, holdRep = nil, 0, 0
 local dragHit = nil
 local focused = true
 local frameStart = 0
-local screenTab, screenT = nil, 1 -- screen transition state
+local screenTab, screenT, prevTab, screenDir, screenDur = nil, 1, nil, 1, 0.4 -- station travel state
 local lazyT = 0
 local bossT = 0
 G.lastInput = 0
@@ -421,7 +421,9 @@ local function runSelftest()
     G.addDrone(G.makeDrone(1))
   end
   if f == 38 then shot("fix_build"); G.tab = "core" end
-  if f == 155 then G.tab = "hangar" end
+  if f == 155 then G.tab = "hangar"; G.travelProbe = 0.45 end
+  if f == 156 then shot("travel_core_to_hangar") end
+  if f == 157 then G.travelProbe = nil end
   if f == 158 then shot("fix_hangar") end
   if f == 174 then G.tab = "map"; G.spawnEnemy("ELITE"); G.tacSel = {kind = "enemy", uid = G.enemies[#G.enemies].uid} end
   if f == 177 then shot("fix_map") end
@@ -931,24 +933,36 @@ function love.draw()
   love.graphics.push()
   if shake > 0 then love.graphics.translate(H.rnd(-shake, shake), H.rnd(-shake, shake)) end
   local scene = SCENES[G.tab] or SCENES.core
-  -- screen transition: the new screen rises into place while a scan line wipes down over it
-  if G.tab ~= screenTab then screenTab, screenT = G.tab, 0 end
-  screenT = math.min(1, screenT + love.timer.getDelta() / H.MO.screen)
-  local tr = (Set.v.reducedMotion or selftest or not H.isHud()) and 1 or H.ease.outCubic(screenT)
-  H.offY = (1 - tr) * 10
-  if tr < 1 then love.graphics.translate(0, H.offY) end
-  scene.draw()
-  if tr < 1 then love.graphics.translate(0, -H.offY) end
-  H.offY = 0
+  -- station travel: the stations sit side by side along the spine. Switching pans the camera across, the old
+  -- station sliding out as the new one slides in; longer trips take a little longer. Only the arriving station
+  -- takes input (the departing one is drawn, then its hits are dropped).
+  if G.tab ~= screenTab then
+    local _, a = F.scene(screenTab or G.tab)
+    local _, b = F.scene(G.tab)
+    prevTab, screenTab, screenT = screenTab, G.tab, 0
+    screenDir = (b or 1) >= (a or 1) and 1 or -1
+    screenDur = math.min(0.6, 0.36 + 0.04 * math.abs((b or 1) - (a or 1)))
+  end
+  screenT = math.min(1, screenT + love.timer.getDelta() / screenDur)
+  if G.travelProbe then screenT = G.travelProbe end -- self-test: freeze mid-travel for a screenshot
+  local travel = prevTab and SCENES[prevTab] and screenT < 1 and not (Set.v.reducedMotion or (selftest and not G.travelProbe) or not H.isHud())
+  if travel then
+    local e = H.ease.inOutCubic(screenT)
+    local W = 1320
+    H.offX = math.floor(-screenDir * W * e)
+    V.panX = H.offX
+    love.graphics.translate(H.offX, 0); SCENES[prevTab].draw(); love.graphics.translate(-H.offX, 0)
+    H.clearHits()
+    H.offX = math.floor(screenDir * W * (1 - e))
+    V.panX = H.offX
+    love.graphics.translate(H.offX, 0); scene.draw(); love.graphics.translate(-H.offX, 0)
+    H.offX, V.panX = 0, 0
+    love.graphics.setScissor()
+  else
+    scene.draw()
+  end
   Shatter.draw()
   love.graphics.pop()
-  if tr < 1 then
-    local x0, _, x1 = V.extents()
-    local top, bot = F.TOP + 1, F.TICKER
-    local sy = top + (bot - top) * tr
-    H.col(H.C.bg, 0.85 * (1 - tr)); V.lg.rectangle("fill", x0, sy, x1 - x0, bot - sy)
-    H.col(H.C.line, 0.7 * (1 - tr)); V.lg.rectangle("fill", x0, sy, x1 - x0, 1)
-  end
   F.topBar()
   F.dock()
   F.signal()
@@ -1044,7 +1058,7 @@ local function cancelChoice()
   FX.toast("BATCH RECYCLED", "+" .. p .. " parts.", H.C.line)
 end
 
-local RESERVED = {escape = true, f11 = true, f12 = true, m = true, b = true, p = true, ["return"] = true, space = true}
+local RESERVED = {escape = true, f11 = true, f12 = true, m = true, b = true, p = true, c = true, ["return"] = true, space = true}
 
 function love.keypressed(k)
   wake()
@@ -1087,6 +1101,7 @@ function love.keypressed(k)
   elseif k == "m" then FX.muted = not FX.muted
   elseif k == "b" then G.buyMode = G.buyMode % #G.BUYMODES + 1
   elseif k == "p" then G.openPerkChoice()
+  elseif k == "c" then G.collectAll()
   elseif tonumber(k) and F.SCENES[tonumber(k)] then
     local key = F.SCENES[tonumber(k)][1]
     if G.unlocked(key) then G.tab = key; FX.play("tap", 1.6, 0.4) else FX.play("err") end

@@ -86,118 +86,218 @@ local function hero()
 end
 
 ----------------------------------------------------------------------
-local function objectives()
+-- ACTION STACK: everything that wants you, in one place. Instant rewards collapse into one command
+-- (COLLECT ALL, key C); things that need a decision or a trip are rows with GO; then what is coming next.
+----------------------------------------------------------------------
+local function stackRow(g, x, y, w, h)
+  local Fo = H.fonts
+  local gc = g.c or C.line
+  local hov = H.mouseIn(x, y, w, h)
+  local t = H.hoverT(x, y, w, h, hov)
+  col(C.panel, 0.9); lg.rectangle("fill", x, y, w, h)
+  col(gc, 0.05 + 0.06 * t); lg.rectangle("fill", x, y, w, h)
+  col(gc, 0.9); lg.rectangle("fill", x, y + 6, 2, h - 12)
+  I.draw(g.icon, x + 18, y + h / 2, 7, gc)
+  local tw = w - 112
+  H.rich(H.fit(Fo.s, g.title, tw), x + 34, y + 5, C.white, 1, Fo.s)
+  H.rich(H.fit(Fo.xs, g.text, tw), x + 34, y + 23, C.dim, 1, Fo.xs)
+  H.button(x + w - 70, y + (h - 24) / 2, 62, 24, g.claim and g.label or "GO  >", true, g.fn, gc, Fo.xs, nil, false)
+end
+
+local function actionStack()
   local Fo = H.fonts
   local x, w = 24, 300
-  local nGoals = #G.goals()
-  H.heading("OBJECTIVES", x, 60, w, C.line, nil, H.isHud() and (nGoals > 6 and ("6 OF " .. nGoals) or (nGoals .. " ACTIVE")) or nil)
   local goals = G.goals()
-  -- one call to action at a time: only the first ready objective gets a filled button
-  local firstReady
-  for k = 1, math.min(6, #goals) do if goals[k].ready and goals[k].label then firstReady = k break end end
-  local y = 86
-  for k = 1, math.min(6, #goals) do
-    local g = goals[k]
-    local h = 66
-    local gc = g.c or C.line
-    local hov = H.mouseIn(x, y, w, h)
-    if H.isHud() then
-      -- objective row: neutral plate, a lit spine and icon bay in the objective's colour; ready rows breathe
-      local t = H.hoverT(x, y, w, h, hov)
-      col(C.panel, 0.94); lg.rectangle("fill", x, y, w, h)
-      if g.ready then col(gc, k == firstReady and 0.1 or 0.05); lg.rectangle("fill", x, y, w, h) end
-      col(C.line, 0.05 * t); lg.rectangle("fill", x, y, w, h)
-      col(gc, g.ready and (0.55 + 0.35 * t) or (0.22 + 0.3 * t)); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
-      col(gc, g.ready and 0.16 or 0.08); lg.polygon("fill", x + H.CUT, y, x + 40, y, x + 40, y + h, x, y + h, x, y + H.CUT)
-      col(gc, g.ready and 1 or 0.6); lg.rectangle("fill", x + 40, y + 10, 1, h - 20)
-    else
-      col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
-      if g.ready then
-        col(gc, 0.1 + 0.06 * math.sin(G.time * 4 + k)); lg.rectangle("fill", x, y, w, h)
-      end
-      if hov then col(C.line, 0.06); lg.rectangle("fill", x, y, w, h) end
-      col(gc, g.ready and 0.9 or 0.35); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
-      col(gc, 0.15); lg.rectangle("fill", x, y, 40, h)
-    end
-    I.draw(g.icon, x + 20, y + h / 2, 9, gc)
-    local tw = g.ready and (w - 140) or (w - 54)
-    H.rich(H.fit(Fo.s, g.title, tw), x + 50, y + 9, g.ready and gc or C.white, 1, Fo.s)
-    H.rich(H.fit(Fo.xs, g.text, tw), x + 50, y + 29, C.dim, 1, Fo.xs)
-    if g.prog then
-      H.bar(x + 50, y + 49, w - 64, 4, g.prog, gc)
-      lg.setFont(Fo.xs); col(C.dim); lg.printf(math.floor(clamp(g.prog, 0, 1) * 100) .. "%", x, y + 34, w - 12, "right")
-    end
-    if g.ready and g.label then
-      H.button(x + w - 84, y + 18, 74, 30, g.label, true, g.fn, gc, Fo.xs, nil, k == firstReady or not H.isHud())
-    elseif g.fn then
-      H.addHit(x, y, w, h, g.fn)
-    end
-    y = y + h + 6
+  local ready, next = {}, {}
+  for _, g in ipairs(goals) do if g.ready then ready[#ready + 1] = g else next[#next + 1] = g end end
+  local claims = #G.collectables()
+  H.heading("ACTION STACK", x, 60, w, C.line, nil, #ready > 0 and (#ready .. " WAITING") or "ALL CLEAR")
+  -- the master command
+  local busy = #G.cascade > 0
+  local label = busy and ("COLLECTING  //  " .. #G.cascade .. " LEFT") or
+    (claims > 0 and ("COLLECT ALL  //  " .. claims .. "   [C]") or "NOTHING TO COLLECT")
+  H.button(x, 86, w, 40, label, claims > 0 and not busy, G.collectAll, C.orange, Fo.m, nil, claims > 0 and not busy)
+  if H.mouseIn(x, 86, w, 40) then
+    H.setTip("COLLECT ALL  [C]", "Claims every instant reward at once: daily supply, log rewards, Signal Track tiers, finished directives and rigs at peak. Works from any screen.")
+  end
+  local y = 134
+  local bottom = 506
+  -- rows that need you (claims are folded into COLLECT ALL; still listed so you know what you get)
+  local shown = 0
+  for _, g in ipairs(ready) do
+    if y + 42 > bottom - 70 then break end
+    stackRow(g, x, y, w, 40)
+    y = y + 44
+    shown = shown + 1
+  end
+  if shown < #ready then
+    H.label("+" .. (#ready - shown) .. " MORE", x + 2, y - 2, C.dim)
+    y = y + 12
+  end
+  if #ready == 0 then
+    -- empty state: say so plainly, with the next thing to aim for
+    col(C.panel, 0.6); lg.rectangle("fill", x, y, w, 40)
+    H.label("NOTHING WAITING. THE TOWER IS HARVESTING.", x + 12, y + 8, C.dim)
+    H.label("Tap the core or build units to speed it up.", x + 12, y + 22, C.faint)
+    y = y + 48
+  end
+  -- what is next: compact progress lines
+  y = y + 6
+  lg.setFont(Fo.xs); col(C.dim); lg.print("NEXT UP", x, y)
+  col(C.faint); lg.line(x + 52, y + 7, x + w, y + 7)
+  y = y + 18
+  for _, g in ipairs(next) do
+    if y + 28 > bottom then break end
+    local hov = g.fn and H.mouseIn(x, y, w, 26)
+    H.rich(H.fit(Fo.xs, g.title, w - 50), x, y, hov and C.white or C.line, 1, Fo.xs)
+    lg.setFont(Fo.xs); col(C.dim); lg.printf(math.floor(clamp(g.prog or 0, 0, 1) * 100) .. "%", x, y, w, "right")
+    H.bar(x, y + 16, w, 3, g.prog or 0, g.c or C.line)
+    if g.fn then H.addHit(x, y, w, 26, g.fn) end
+    if hov then H.setTip(g.title, g.text) end
+    y = y + 30
   end
 end
 
 ----------------------------------------------------------------------
+-- right column: tap telemetry, PRODUCTION FLOW (where the energy actually comes from), rigs, signal track
+----------------------------------------------------------------------
+local hist, histT = {}, -1
+local function sample()
+  local now = love.timer.getTime()
+  if now - histT < 1 then return end
+  histT = now
+  hist[#hist + 1] = G.getCps()
+  if #hist > 60 then table.remove(hist, 1) end
+end
+
+local function telemetry(x, y, w)
+  local Fo = H.fonts
+  local h = 58
+  H.card(x, y, w, h, nil, C.line)
+  local surging = G.hasBuff("CORE SURGE")
+  local cw = w / 3
+  local cols = {
+    {"CORE SURGE", surging and "x3 LIVE" or (math.floor(G.surge * 100) .. "%"), surging and C.orange or C.white,
+      "Tap fast to fill the orange ring. Full = output x3 for 15s."},
+    {"TAP CHAIN", string.format("x%.2f", 1 + math.min(G.combo, 200) * 0.005), G.combo > 1 and C.red or C.white,
+      "Tapping fast builds the red ring: up to x2 tap power. Breaks after 1.2s without a tap. Crits: 4% for x10."},
+    {"PER TAP", "+" .. fmt(G.tapValue()), C.white,
+      "Energy per tap. Auto-tap: " .. (G.autoRate > 0 and (fmt(G.autoRate) .. " taps/s") or "none (tech: SERVOS)") .. "."},
+  }
+  for k, c in ipairs(cols) do
+    local cx = x + (k - 1) * cw
+    if k > 1 then col(C.faint); lg.line(cx, y + 10, cx, y + h - 10) end
+    H.label(c[1], cx + 12, y + 9, C.dim)
+    lg.setFont(Fo.m); col(c[3]); lg.print(H.fit(Fo.m, c[2], cw - 16), cx + 12, y + 24)
+    if H.mouseIn(cx, y, cw, h) then H.setTip(c[1], c[4]) end
+  end
+  H.bar(x + 12, y + h - 8, cw - 24, 2, surging and 1 or G.surge, C.orange)
+  H.bar(x + cw + 12, y + h - 8, cw - 24, 2, math.min(G.combo, 200) / 200, C.red)
+  return y + h
+end
+
+local function production(x, y, w)
+  local S = G.S
+  local Fo = H.fonts
+  local h = 190
+  H.card(x, y, w, h, "PRODUCTION FLOW", C.line, "OUTPUT x" .. fmt(G.globalMult))
+  -- 60 second history, log scale: shows growth, saturation and buffs at a glance
+  local gx, gy, gw, gh = x + 12, y + 32, w - 24, 50
+  col(C.faint, 0.5)
+  for k = 1, 3 do lg.line(gx, gy + gh * k / 4, gx + gw, gy + gh * k / 4) end
+  if #hist >= 2 then
+    local lo, hi = math.huge, -math.huge
+    for _, v in ipairs(hist) do local l = math.log10(math.max(v, 1)); lo = math.min(lo, l); hi = math.max(hi, l) end
+    if hi - lo < 0.05 then lo, hi = lo - 0.05, hi + 0.05 end
+    local pts = {}
+    for i, v in ipairs(hist) do
+      pts[#pts + 1] = gx + (i - 1) / 59 * gw
+      pts[#pts + 1] = gy + gh - (math.log10(math.max(v, 1)) - lo) / (hi - lo) * gh
+    end
+    col(C.line, 0.08)
+    for i = 1, #pts - 3, 2 do
+      lg.polygon("fill", pts[i], pts[i + 1], pts[i + 2], pts[i + 3], pts[i + 2], gy + gh, pts[i], gy + gh)
+    end
+    col(C.line, 0.9); lg.setLineWidth(1.5); lg.line(pts); lg.setLineWidth(1)
+    col(C.white); lg.rectangle("fill", pts[#pts - 1] - 2, pts[#pts] - 2, 4, 4)
+  else
+    H.label("SAMPLING...", gx, gy + gh / 2 - 6, C.faint)
+  end
+  H.label("60S", gx, gy + gh + 3, C.faint)
+  lg.setFont(Fo.xs); col(C.dim); lg.printf("NOW " .. fmt(G.getCps()) .. "/S", gx, gy + gh + 3, gw, "right")
+  -- share of output per unit type
+  local parts, total = {}, 0
+  for i = 1, #D.GENS do
+    local v = (S.gens[i] or 0) > 0 and (G.genEach[i] or 0) * S.gens[i] or 0
+    if v > 0 then parts[#parts + 1] = {i = i, v = v}; total = total + v end
+  end
+  table.sort(parts, function(a, b) return a.v > b.v end)
+  local by = gy + gh + 22
+  col(C.faint, 0.6); lg.rectangle("fill", gx, by, gw, 8)
+  if total > 0 then
+    local cx = gx
+    for k, p in ipairs(parts) do
+      local pw = p.v / total * gw
+      col(C.line, math.max(0.18, 1 - (k - 1) * 0.22)); lg.rectangle("fill", cx, by, math.max(0, pw - 1), 8)
+      cx = cx + pw
+    end
+    local ry = by + 16
+    for k = 1, math.min(3, #parts) do
+      local p = parts[k]
+      local g = D.GENS[p.i]
+      col(C.line, math.max(0.18, 1 - (k - 1) * 0.22)); lg.rectangle("fill", gx, ry + 4, 6, 6)
+      lg.setFont(Fo.xs); col(C.white); lg.print(H.fit(Fo.xs, g.name:upper(), 140), gx + 12, ry)
+      col(C.dim); lg.printf(fmt(p.v) .. "/S", gx, ry, gw - 40, "right")
+      col(C.line); lg.printf(math.floor(p.v / total * 100 + 0.5) .. "%", gx, ry, gw, "right")
+      ry = ry + 16
+    end
+  else
+    H.label("No units yet. Build one below.", gx, by + 16, C.dim)
+  end
+  if H.mouseIn(x, y, w, h) then
+    H.setTip("PRODUCTION FLOW", "Top: energy per second over the last minute (log scale). Bar: each unit type's share of your output. Click to open BUILD.")
+  end
+  H.addHit(x, y, w, h, function() if G.unlocked("build") then G.tab = "build"; FX.play("tap", 1.6, 0.4) end end)
+  return y + h
+end
+
 local function status()
   local S = G.S
   local Fo = H.fonts
   local x, w = 956, 300
-  H.heading("REACTOR STATUS", x, 60, w, C.line)
-  -- surge
-  local surging = G.hasBuff("CORE SURGE")
-  local y = 86
-  H.card(x, y, w, 64, nil, surging and C.orange or C.line)
-  H.label("CORE SURGE", x + 12, y + 8, surging and C.orange or C.dim)
-  lg.setFont(Fo.l); col(surging and C.orange or C.white)
-  lg.printf(surging and "ACTIVE x3" or (math.floor(G.surge * 100) .. "%"), x, y + 4, w - 12, "right")
-  H.segbar(x + 12, y + 34, w - 24, 8, surging and 1 or G.surge, 20, C.orange)
-  H.label("Tap fast to fill: output x3 for 15s", x + 12, y + 46, C.dim)
-  -- chain + crit
-  y = y + 70
-  H.card(x, y, w, 52, nil, G.combo > 1 and C.red or C.line)
-  H.label("TAP CHAIN", x + 12, y + 8, G.combo > 1 and C.red or C.dim)
-  lg.setFont(Fo.m); col(G.combo > 1 and C.red or C.white)
-  lg.printf(string.format("x%.2f", 1 + math.min(G.combo, 200) * 0.005), x, y + 5, w - 12, "right")
-  H.bar(x + 12, y + 34, w - 24, 4, math.min(G.combo, 200) / 200, C.red)
-  -- output
-  y = y + 58
-  H.card(x, y, w, 88, nil, C.line)
-  local rows = {
-    {"PER TAP", "+" .. fmt(G.tapValue())},
-    {"AUTO-TAP", G.autoRate > 0 and (fmt(G.autoRate) .. " / SEC") or "NONE (TECH: SERVOS)"},
-    {"OUTPUT MULTIPLIER", "x" .. fmt(G.globalMult)},
-    {"TAP CRIT", "4%  //  x10"},
-  }
-  for k, r in ipairs(rows) do
-    H.label(r[1], x + 12, y + 8 + (k - 1) * 18, C.dim)
-    lg.setFont(Fo.xs); col(C.white); lg.printf(r[2], x, y + 8 + (k - 1) * 18, w - 12, "right")
-  end
-  -- rigs quick collect
-  y = y + 94
-  H.card(x, y, w, 102, "HYDRO RIGS", C.line, fmt(math.floor(S.hydro)) .. " H2O")
+  H.heading("TELEMETRY", x, 60, w, C.line)
+  local y = telemetry(x, 86, w) + 6
+  y = production(x, y, w) + 6
+  -- rigs: one line each
+  local rh = 30 + #S.rigs * 18
+  H.card(x, y, w, rh, "HYDRO RIGS", C.line, fmt(math.floor(S.hydro)) .. " H2O")
   for i, r in ipairs(S.rigs) do
-    local ry = y + 30 + (i - 1) * 23
-    H.label("R" .. i, x + 12, ry + 2, C.white)
+    local ry = y + 30 + (i - 1) * 18
+    H.label("R" .. i, x + 12, ry, C.white)
     if r.on then
       local f = clamp(r.tank / G.rigCap(i), 0, 1)
       local full = f >= 1
-      H.bar(x + 34, ry + 6, 150, 6, f, full and C.orange or C.line)
-      lg.setFont(Fo.xs); col(full and C.orange or C.dim); lg.print(math.floor(f * 100) .. "%", x + 190, ry + 2)
-      if G.unlocked("rigs") then
-        H.button(x + w - 80, ry, 68, 19, full and "PEAK!" or "COLLECT", r.tank >= 1, function() G.collectRig(i) end,
-          full and C.orange or C.line, Fo.xs, nil, full)
+      H.bar(x + 34, ry + 5, 150, 4, f, full and C.orange or C.line)
+      lg.setFont(Fo.xs); col(full and C.orange or C.dim); lg.print(math.floor(f * 100) .. "%", x + 190, ry)
+      if G.unlocked("rigs") and r.tank >= 1 then
+        local hov = H.mouseIn(x + w - 74, ry - 2, 62, 16)
+        lg.setFont(Fo.xs); col(full and C.orange or (hov and C.white or C.line))
+        lg.printf(full and "PEAK  >" or "COLLECT", x + w - 74, ry, 62, "right")
+        H.addHit(x + w - 74, ry - 2, 62, 16, function() G.collectRig(i) end)
       end
     else
-      H.label("OFFLINE // RESTORE IN RIGS", x + 34, ry + 2, C.faint)
+      H.label("OFFLINE // RESTORE IN RIGS", x + 34, ry, C.faint)
     end
   end
-  -- signal track mini
-  y = y + 108
+  y = y + rh + 6
   local need = G.passNeed(S.passTier + 1)
   local ready = G.passReady()
-  H.card(x, y, w, 66, "SIGNAL TRACK // TIER " .. S.passTier, ready > 0 and C.orange or C.line, ready > 0 and (ready .. " READY") or nil)
-  H.bar(x + 12, y + 32, w - 24, 5, S.sxp / need, C.orange)
-  H.label("NEXT: " .. D.passReward(S.passTier + 1).text, x + 12, y + 44, C.dim)
-  if ready > 0 then H.addHit(x, y, w, 66, G.claimPass) end
+  if y + 56 <= 512 then
+    H.card(x, y, w, 56, "SIGNAL TRACK // TIER " .. S.passTier, ready > 0 and C.orange or C.line, ready > 0 and (ready .. " READY") or nil)
+    H.bar(x + 12, y + 32, w - 24, 4, S.sxp / need, C.orange)
+    H.label("NEXT: " .. D.passReward(S.passTier + 1).text, x + 12, y + 40, C.dim)
+    if ready > 0 then H.addHit(x, y, w, 56, G.claimPass) end
+  end
 end
 
 ----------------------------------------------------------------------
@@ -278,7 +378,8 @@ end
 function Sc.draw()
   hero()
   Reactor.draw()
-  objectives()
+  sample()
+  actionStack()
   status()
   quickBuild()
 end

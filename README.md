@@ -62,6 +62,7 @@ The window can be resized, and fullscreen is supported (F11).
 | 1–8 | Switch scenes |
 | Tab / Shift+Tab, Enter | Move keyboard focus between controls, press the focused one |
 | P | Spend perk points |
+| C | Collect all instant rewards (daily, logs, signal tiers, directives, peaked rigs) |
 | B | Cycle buy amount (x1 / x10 / x100 / MAX) |
 | M | Mute |
 | Esc | Back to CORE, or open settings |
@@ -86,6 +87,9 @@ Sound effects are synthesized at startup; the meme themes can also play MP3s fro
 
 ### Design system
 
+**Structure.** The tower is one continuous place. The eight stations sit side by side on **the Spine** (bottom): a transit line where every station shows a live readout of what is happening there (perks waiting, tech ready, tank levels, crates, mothership, reboot gain, rewards), amber when something can be collected and red when it needs you now. Switching stations pans the camera along the line: the old station slides out, the new one slides in, and the background grid drifts with the trip. The **CORE** is the command center: the reactor in the middle, the **Action Stack** on the left (one COLLECT ALL command, key C, for every instant reward, then the things that need a decision or a trip, then NEXT UP progress), and **Telemetry** on the right (surge, chain and tap power, a PRODUCTION FLOW chart of the last minute plus each unit type's share of output, rigs, Signal Track).
+
+
 The house style is **COMMAND** (the default theme): graphite surfaces, ice-white interface light and one warm signal amber for anything that needs action. Every HUD theme shares the same building blocks; desktop-app themes (macOS, Windows, web) keep their own drawing.
 
 - **Tokens** (`lib/hud.lua`): palette roles in `H.C` (`bg`, `panel`, `line` = interface light, `white` = text, `dim`, `faint` = separators, `orange` = action, `red` = danger, `gold` = reward), spacing `H.SP` (8 pt grid), motion speeds `H.MO`, easing curves `H.ease`, chamfer size `H.CUT`.
@@ -93,7 +97,7 @@ The house style is **COMMAND** (the default theme): graphite surfaces, ice-white
 - **Type**: Bahnschrift for the interface, Franklin Gothic for display (`H.fonts.huge`, `d1`, `dxl`, `d2`, `d3`), falling back to Bahnschrift.
 - **Components**: `H.button` (hover fill sweep, press sink, lock-on focus ticks, light sweep on primary actions, hatched disabled state), `H.card`, `H.rowFrame`, `H.segmented` (sliding selection), `H.heading`, `H.bar` (gliding fill with a lit leading edge), `H.focusRing`, `H.badge`.
 - **Interaction**: idle controls are calm; hover fills, brightens the edge and runs one light sweep; press sinks 1px; a refused click shakes the control red and buzzes. The system cursor turns into a hand over anything clickable (the reactor included) and a "no" sign over disabled controls. **TAB / SHIFT+TAB** move a keyboard focus (lock-on corner ticks) through every control in reading order, **ENTER** presses it, **ESC** clears it. One filled call to action per area; red means danger only.
-- **Motion**: `H.tween` / `H.hoverT` give immediate-mode elements eased state. Screens rise in behind a scan-line wipe, the dock indicator glides between tabs, modals fade their backdrop and draw their frame, tooltips rise into place, banners open as a letterbox. **Reduced motion** (Settings > Comfort) snaps all of it and stops the background drift and grain.
+- **Motion**: `H.tween` / `H.hoverT` give immediate-mode elements eased state. Stations pan side by side along the Spine (the marker travels the line with them), modals fade their backdrop and draw their frame, tooltips rise into place, banners open as a letterbox. **Reduced motion** (Settings > Comfort) snaps all of it and stops the background drift and grain.
 
 **Self-test**: drives every system headlessly, captures screenshots and writes `selftest_result.txt` to its save folder.
 

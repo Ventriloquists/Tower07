@@ -194,16 +194,16 @@ function H.scrollAt(x, y)
   end
 end
 -- H.offY: vertical offset of the content being drawn (screen transitions), so hover and hits match what is seen
-H.offY = 0
+H.offY, H.offX = 0, 0
 function H.mouseIn(x, y, w, h, clip)
   local mx, my = V.mouse()
-  my = my - H.offY
+  mx, my = mx - H.offX, my - H.offY
   if clip and (my < clip[1] or my > clip[2]) then return false end
   return mx >= x and mx <= x + w and my >= y and my <= y + h
 end
 -- hold = true: keeps firing while the mouse button is held (hold-to-buy)
 function H.addHit(x, y, w, h, fn, clip, hold)
-  y = y + H.offY
+  x, y = x + H.offX, y + H.offY
   if clip then
     local y0, y1 = math.max(y, clip[1]), math.min(y + h, clip[2])
     if y1 <= y0 then return end

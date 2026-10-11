@@ -193,7 +193,10 @@ function lg.rectangle(mode, x, y, w, h, rx, ry, seg)
   return G.rectangle(mode, x, y, w, h, rx, ry, seg)
 end
 function lg.setLineWidth(w) G.setLineWidth(w * V.lw) end
+-- V.panX: horizontal camera offset while travelling between stations (scissors must follow the content)
+V.panX = 0
 local function warpRect(x, y, w, h)
+  x = x + V.panX
   if not V.fx then return x, y, w, h end
   local ax, ay, bx, by = math.huge, math.huge, -math.huge, -math.huge
   for _, p in ipairs({{x, y}, {x + w, y}, {x, y + h}, {x + w, y + h}}) do
