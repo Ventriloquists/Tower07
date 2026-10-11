@@ -270,6 +270,18 @@ local function themes(clip)
     end
     lg.setFont(Fo.s); lg.setColor(tc.white[1], tc.white[2], tc.white[3]); lg.print(t.name, x + 12, y + 10)
     lg.setFont(Fo.xs); lg.setColor(tc.dim[1], tc.dim[2], tc.dim[3]); lg.print(H.fit(Fo.xs, t.desc, cw - 24), x + 12, y + 96)
+    -- tag: what kind of theme this is
+    local tag, tcol = nil, C.line
+    if t.cursed then tag, tcol = "CURSED", C.red
+    elseif t.glass then tag, tcol = "GLASS", C.holo
+    elseif t.screen then tag, tcol = "WARP", C.orange
+    elseif t.anim then tag, tcol = "ANIMATED", C.holo
+    elseif t.style then tag, tcol = "APP", C.line end
+    if tag then
+      local tw = Fo.xs:getWidth(tag) + 10
+      col(tcol); lg.rectangle("fill", x + 12, y + ch - 22, tw, 14)
+      lg.setFont(Fo.xs); col(C.bg); lg.printf(tag, x + 12, y + ch - 21, tw, "center")
+    end
     H.brackets(x, y, cw, ch, 8, active and C.white or (hov and C.line or C.dim), active and 1 or 0.7)
     if active then
       col(C.white); lg.rectangle("fill", x + cw - 62, y + 8, 54, 16)
@@ -284,7 +296,12 @@ local function themes(clip)
     H.addHit(x, y, cw, ch, function()
       if not unlocked then FX.play("err"); say("Locked: " .. t.lock .. ".", C.red) return end
       set("theme", t.id)
-      say("Theme: " .. t.name, C.line)
+      if t.cursed then
+        say("Theme: " .. t.name .. "  //  press F9 anytime to escape", C.red)
+        FX.toast("CURSED THEME", "Press F9 at any time to get back to OBLIVION.", C.red)
+      else
+        say("Theme: " .. t.name, C.line)
+      end
     end, clip)
   end
   local rowsN = math.ceil(#Th.LIST / cols)

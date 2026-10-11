@@ -154,6 +154,7 @@ function love.load(args)
   G.lastInput = love.timer.getTime()
   for _, a in ipairs(args or {}) do if a == "--pace" then G.paceProbe() end end
   for _, a in ipairs(args or {}) do if a == "--zonesim" then G.zoneSim() end end
+  for _, a in ipairs(args or {}) do if a == "--rescale" then G.rescaleSave() end end
   for _, a in ipairs(args or {}) do
     if a == "--mapdiag" then
       local ok, r = pcall(function() G.recalc(); return G.mapReport() end)
@@ -161,6 +162,51 @@ function love.load(args)
       love.event.quit()
     end
   end
+end
+
+-- --rescale: one-time cleanup of a save inflated by the old XP / Signal Track / loot luck runaway.
+-- Writes save_before_rescale.lua first, then rescale_report.txt.
+function G.rescaleSave()
+  local old = love.filesystem.read("save.lua")
+  if not old then love.event.quit() return end
+  love.filesystem.write("save_before_rescale.lua", old)
+  G.init(false)
+  local S = G.S
+  local rep = {}
+  local function note(k, a, b) rep[#rep + 1] = string.format("%-22s %s -> %s", k, tostring(a), tostring(b)) end
+  note("signal track tier", S.passTier, math.min(S.passTier, 150)); S.passTier = math.min(S.passTier, 150); S.passClaimed = S.passTier; S.sxp = 0
+  note("rank", S.rank, math.min(S.rank, 150)); S.rank = math.min(S.rank, 150); S.xp = 0
+  note("perk points", S.perkPoints, math.min(S.perkPoints, 30)); S.perkPoints = math.min(S.perkPoints, 30)
+  note("fab tokens", S.tokens, math.min(S.tokens, 150)); S.tokens = math.min(S.tokens, 150)
+  -- PRISM drones: keep the 6 strongest
+  local prisms = {}
+  for _, d in ipairs(S.drones) do if d.r == 6 then prisms[#prisms + 1] = d end end
+  table.sort(prisms, function(a, b) return G.dronePower(a) > G.dronePower(b) end)
+  local drop = {}
+  for k = 7, #prisms do drop[prisms[k]] = true end
+  for k = #S.drones, 1, -1 do
+    local d = S.drones[k]
+    if drop[d] then
+      for _, m in ipairs(d.mods) do table.insert(S.modules, m) end
+      table.remove(S.drones, k)
+    end
+  end
+  note("PRISM drones", #prisms, math.min(#prisms, 6))
+  -- PRISMATIC modules: keep the 24 strongest, the rest become MYTHIC
+  local pm = {}
+  for _, m in ipairs(S.modules) do if m.r == 7 then pm[#pm + 1] = m end end
+  for _, d in ipairs(S.drones) do for _, m in ipairs(d.mods) do if m.r == 7 then pm[#pm + 1] = m end end end
+  table.sort(pm, function(a, b) return G.modScore(a) > G.modScore(b) end)
+  for k = 25, #pm do pm[k].r = 6; pm[k].v = pm[k].v * D.RMUL[6] / D.RMUL[7] end
+  note("PRISMATIC modules", #pm, math.min(#pm, 24))
+  -- crates waiting on the map: nothing above LEGENDARY
+  local cr = 0
+  for _, c in ipairs(S.crateList) do if c.r > 5 then c.r = 5; cr = cr + 1 end end
+  note("map crates downgraded", cr, 0)
+  G.recalc()
+  G.save()
+  love.filesystem.write("rescale_report.txt", table.concat(rep, "\n"))
+  love.event.quit()
 end
 
 -- Zone pacing: how long a zone takes with a weak vs. a maxed fleet (no rendering) -> zonesim.txt
@@ -206,9 +252,9 @@ function G.zoneSim()
         if not spawnAt and G.boss() then spawnAt = t end
         if S.bossDown then killAt = t break end
       end
-      out[#out + 1] = string.format("zone %d  %-38s mothership %6s   cleared %6s   land %3d%%  kills %4d  peak scavs %d",
+      out[#out + 1] = string.format("zone %d  %-38s mothership %6s   cleared %6s   land %3d%%  kills %4d  crates %3d  peak scavs %d",
         zone, fl.name, spawnAt and string.format("%.1fm", spawnAt / 60) or "never", killAt and string.format("%.1fm", killAt / 60) or "never",
-        math.floor(G.landFrac() * 100), S.kills, peak)
+        math.floor(G.landFrac() * 100), S.kills, S.crates + #S.crateList, peak)
     end
   end
   love.filesystem.write("zonesim.txt", table.concat(out, "\n"))
@@ -622,7 +668,28 @@ local function runSelftest()
     local d = G.makeDrone(6); G.addDrone(d); G.hangarSel = d.id
   end
   if f == 751 then shot("prism_drone_card") end
-  if f == 760 then
+  -- desktop-app themes
+  if f == 752 then FX.prism, FX.rays, FX.particles = nil, {}, {}; Set.v.theme = "macos"; applySettings("theme"); G.tab = "core" end
+  if f == 754 then shot("theme_macos_core") end
+  if f == 755 then Set.v.theme = "win11"; applySettings("theme"); G.tab = "hangar" end
+  if f == 757 then shot("theme_win11_hangar") end
+  if f == 758 then Set.v.theme = "macdark"; applySettings("theme"); G.tab = "map" end
+  if f == 759 then shot("theme_macdark_map"); Set.v.theme = "oblivion"; applySettings("theme") end
+  -- social + silly themes
+  if f == 760 then G.rankBanner, G._banner, G.bannerQueue = nil, nil, {}; Set.v.theme = "youtube"; applySettings("theme"); G.tab = "core" end
+  if f == 762 then shot("theme_youtube_core") end
+  if f == 763 then Set.v.theme = "reddit"; applySettings("theme"); G.tab = "hangar" end
+  if f == 765 then shot("theme_reddit_hangar") end
+  if f == 766 then Set.v.theme = "twitter"; applySettings("theme"); G.tab = "map" end
+  if f == 768 then shot("theme_twitter_map") end
+  if f == 769 then Set.v.theme = "macos"; applySettings("theme"); G.tab = "hangar"; V.fakeMouse = {520, 690} end
+  if f == 772 then shot("theme_macos_dock") end
+  if f == 773 then V.fakeMouse = nil; Set.v.theme = "australia"; applySettings("theme"); G.tab = "core" end
+  if f == 775 then shot("theme_australia") end
+  if f == 776 then Set.v.theme = "dvd"; applySettings("theme") end
+  if f == 779 then shot("theme_dvd") end
+  if f == 781 then Set.v.theme = "oblivion"; applySettings("theme") end
+  if f == 790 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
       " " .. tostring(G.selftestImport) .. " " .. tostring(G.selftestReset) .. " " .. tostring(G.selftestLazy) ..
       " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
@@ -776,8 +843,8 @@ function love.draw()
     love.graphics.rectangle("fill", 0, 0, love.graphics.getDimensions())
   end
   love.graphics.setColor(1, 1, 1, 1)
-  if Set.v.scanlines then love.graphics.draw(scanCanvas, 0, 0) end
-  if Set.v.vignette then love.graphics.draw(vignette, 0, 0, 0, V.winW / vignette:getWidth(), V.winH / vignette:getHeight()) end
+  if Set.v.scanlines and not H.style then love.graphics.draw(scanCanvas, 0, 0) end
+  if Set.v.vignette and not H.style then love.graphics.draw(vignette, 0, 0, 0, V.winW / vignette:getWidth(), V.winH / vignette:getHeight()) end
   finishFrame()
 end
 

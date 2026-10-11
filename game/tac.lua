@@ -270,8 +270,9 @@ end
 ----------------------------------------------------------------------
 function G.rollTier(min)
   local t = math.min(#LOOT, min + (G.eventActive("INVASION") and 1 or 0) + (G.weather.def.id == "FOG" and 1 or 0))
-  local luck = (1 + G.luck) * (1 + 0.1 * G.tr("sv_tier"))
-  while t < #LOOT and love.math.random() < D.LOOT_UP[t + 1] * luck do t = t + 1 end
+  -- loot luck is capped at x1.75 on climb chances, and PRISMATIC (the last step) never benefits from luck
+  local luck = math.min(1.75, (1 + G.luck) * (1 + 0.1 * G.tr("sv_tier")))
+  while t < #LOOT and love.math.random() < D.LOOT_UP[t + 1] * (t + 1 == #LOOT and 1 or luck) do t = t + 1 end
   return t
 end
 
@@ -329,7 +330,7 @@ function G.openCrate(k, quiet, sx, sy)
     lines[#lines + 1] = "+" .. fmt(cd) .. " CORE DATA"
   end
   -- PRISM drones only ever come out of crates (and only the best ones)
-  local pc = ({[5] = 0.002, [6] = 0.02, [7] = 0.25})[c.r]
+  local pc = ({[5] = 0.0005, [6] = 0.004, [7] = 0.05})[c.r]
   local prismDrone
   if pc and love.math.random() < pc then
     prismDrone = G.makeDrone(#RAR)
@@ -387,6 +388,7 @@ end
 -- SCAV ALERT: claiming sectors and killing scavs raise it; at 100% the mothership arrives.
 -- Claims alone give ~45% at 60% land, kills supply the rest, so a strong fleet gets there in minutes.
 G.KILL_ALERT = {SCOUT = 0.006, RAIDER = 0.01, BRUTE = 0.02, ELITE = 0.04}
+G.KILL_CRATE = {SCOUT = 0.1, RAIDER = 0.2, BRUTE = 0.4, ELITE = 0.7, MOTHERSHIP = 1}
 function G.raiseAlert(v)
   local S = G.S
   if S.bossDown or G.boss() then return end
@@ -435,7 +437,7 @@ function G.spawnEnemy(kind)
   table.insert(G.enemies, e)
   if def.boss then
     e.bounty = G.BOUNTY_TIME + 60 * G.tr("map_bounty")
-    G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it within " .. H.fmtTime(G.BOUNTY_TIME) .. " for the BOUNTY: 2 LEGENDARY crates + 3 fab tokens.", c = C.red}
+    G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it within " .. H.fmtTime(G.BOUNTY_TIME) .. " for the BOUNTY: a LEGENDARY crate + 3 fab tokens.", c = C.red}
     FX.toast("!! MOTHERSHIP DETECTED !!", "Bounty clock is running. Check the MAP.", C.red)
     FX.play("raid")
     FX.shake = math.max(FX.shake, 10)
@@ -461,10 +463,9 @@ function G.killEnemy(e)
   S.tetCharge = math.min(1, (S.tetCharge or 0) + (e.def.boss and 0.3 or 0.04))
   if e.raid > 0 then S.raidsRepelled = S.raidsRepelled + 1 end
   G.addXP(e.def.xp)
-  local n = e.def.crates
-  if love.math.random() < G.luck * 0.5 then n = n + 1 end
-  if love.math.random() < 0.1 * G.tr("sv_crate") then n = n + 1 end
-  for _ = 1, n do G.dropCrate(e.x + rnd(-0.4, 0.4), e.y + rnd(-0.4, 0.4), G.rollTier(e.def.tier)) end
+  -- one crate at most per kill; bigger scavs are more likely to carry one
+  local chance = (G.KILL_CRATE[e.def.id] or 0.3) + 0.05 * G.tr("sv_crate")
+  if love.math.random() < chance then G.dropCrate(e.x + rnd(-0.4, 0.4), e.y + rnd(-0.4, 0.4), G.rollTier(e.def.tier)) end
   local px, py = G.toPx(e.x, e.y)
   local big = e.def.boss and 3 or (e.def.tier >= 3 and 2 or 1)
   if onMap() then
@@ -480,8 +481,8 @@ function G.killEnemy(e)
     if (e.bounty or 0) > 0 then
       S.bounties = (S.bounties or 0) + 1
       S.tokens = S.tokens + 3
-      for _ = 1, 2 do G.dropCrate(e.x + rnd(-0.5, 0.5), e.y + rnd(-0.5, 0.5), 5) end
-      FX.toast("BOUNTY CLAIMED", "Mothership down with " .. H.fmtTime(e.bounty) .. " to spare: 2 LEGENDARY crates + 3 fab tokens.", C.gold)
+      G.dropCrate(e.x, e.y, 5)
+      FX.toast("BOUNTY CLAIMED", "Mothership down with " .. H.fmtTime(e.bounty) .. " to spare: a LEGENDARY crate + 3 fab tokens.", C.gold)
     end
     if S.zone > S.zoneBest then S.zoneBest = S.zone end
     G.recalc()

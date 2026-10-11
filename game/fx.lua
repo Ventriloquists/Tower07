@@ -248,7 +248,13 @@ end
 -- PRISM: the screen completely escalates (drawn above everything by FX.drawPrism)
 FX.prism = nil
 function FX.prismEvent(label, x, y)
-  if FX.prism and FX.prism.t < 2 then return end
+  -- the takeover is special: at most once every 45 s, extra drops in between only get a slam
+  local now = love.timer.getTime()
+  if FX.prism or now - (FX.prismLast or -1e9) < 45 then
+    if not FX.prism then FX.slam((label or "PRISM") .. "!", x or 640, y or 360, C.holo) end
+    return
+  end
+  FX.prismLast = now
   FX.prism = {t = 0, label = label or "PRISM", x = x or 640, y = y or 360, max = 5.2, rings = 0}
   FX.lootSound(3)
   FX.flashTo({1, 1, 1}, 1)

@@ -251,7 +251,7 @@ function D.passReward(t)
   local k = t % 5
   if k == 1 then local v = 20 + t * 6 return {hydro = v, text = "+" .. v .. " H2O", col = "line", icon = "hydro"} end
   if k == 2 then local v = 10 + t * 4 return {parts = v, text = "+" .. v .. " PARTS", col = "white", icon = "parts"} end
-  if k == 3 then return {crate = 3, text = "RARE CRATE", col = "white"} end
+  if k == 3 then local v = 15 + t * 5 return {parts = v, hydro = v, text = "+" .. v .. " PARTS + H2O", col = "white", icon = "parts"} end
   if k == 4 then return {tokens = 1, text = "+1 FAB TOKEN", col = "orange", icon = "token"} end
   return {crate = 4, text = "EPIC CRATE", col = "orange"}
 end

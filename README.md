@@ -34,6 +34,7 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
   - **Touch-grass reminders**.
   - **Lazy mode**: automatically claims routine rewards.
   - **Meme loot sounds**: vine boom, air horn and worse for special drops.
+  - **Themes**: 50+ palettes, from proper (Blueprint, Sakura, Arctic) to memes (Hotdog Stand, MS Paint, Bliss.jpg) and cursed, nearly unplayable ones (F9 always resets the theme). Desktop-app themes (macOS with a magnifying Dock, Windows 11, YouTube, Reddit, Twitter) switch to rounded, shadowed panels, sentence case and the system font; **macOS GLASS** makes the window see-through on Windows. Warp themes move the whole screen (upside down, mirrored, drunk, DVD screensaver...) and stay clickable.
 
 ## Running
 

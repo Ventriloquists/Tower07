@@ -82,7 +82,8 @@ end
 ----------------------------------------------------------------------
 -- Signal Track: endless season-pass tiers fed by all XP
 ----------------------------------------------------------------------
-function G.passNeed(t) return 300 + 60 * math.min(t, 50) end
+-- keeps scaling past tier 50 (3% per tier) so huge XP can never flood the track with crates
+function G.passNeed(t) return (300 + 60 * math.min(t, 50)) * 1.03 ^ math.max(0, t - 50) end
 function G.passReady() return G.S.passTier - G.S.passClaimed end
 
 local function applyPass(t, px, py, quiet)

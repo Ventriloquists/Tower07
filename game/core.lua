@@ -675,8 +675,8 @@ function G.claimCell(i)
   G.revealAround(x, y, 1.5 + 0.5 * G.tr("map_deep"))
   local th = G.baseThreat(i)
   G.addXP(30 + th * 5)
-  -- radiation sectors take twice as long but always cough up an extra crate
-  if G.isRadiation and G.isRadiation(i) and G.dropCrate then
+  -- radiation sectors take twice as long but may cough up a crate (35%)
+  if G.isRadiation and G.isRadiation(i) and G.dropCrate and love.math.random() < 0.35 then
     G.dropCrate(x, y, G.rollTier(math.min(5, 2 + math.floor(S.zone / 2))))
     if G.addFeed then G.addFeed("RADIATION SECTOR " .. G.cellName(i) .. " // EXTRA CRATE", C.gold) end
   end
@@ -994,7 +994,7 @@ end
 ----------------------------------------------------------------------
 function G.xpNeed(r) return math.floor(100 * r ^ 1.6) end
 function G.addXP(n)
-  n = n * (1 + 0.2 * G.tr("sg_xp")) * 1.05 ^ G.tr("od_sig")
+  n = n * (1 + 0.2 * G.tr("sg_xp"))
   S.xp = S.xp + n
   S.sxp = S.sxp + n
   local ranked = false

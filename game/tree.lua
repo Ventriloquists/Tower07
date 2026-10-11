@@ -122,7 +122,7 @@ T.NODES = {
     cost = 2e5, grow = 1.45, endless = true, now = function(r) return "x" .. fmt(1.2 ^ r) end},
   {id = "od_salv", b = "SALVAGE", d = 7.2, s = 0, req = "sv_mythic", name = "Overdrive: Endless Salvage", desc = "Parts from crates x1.3 per rank. Endless.", max = math.huge,
     cost = 2e5, grow = 1.45, endless = true, now = function(r) return "x" .. fmt(1.3 ^ r) end},
-  {id = "od_sig",  b = "SIGNALS", d = 7.2, s = 0, req = "sg_dream", name = "Overdrive: Endless Current", desc = "Rig flow x1.3 and XP x1.05 per rank. Endless.", max = math.huge,
+  {id = "od_sig",  b = "SIGNALS", d = 7.2, s = 0, req = "sg_dream", name = "Overdrive: Endless Current", desc = "Rig flow x1.3 per rank. Endless.", max = math.huge,
     cost = 2e5, grow = 1.45, endless = true, now = function(r) return "x" .. fmt(1.3 ^ r) end},
 }
 T.SPREAD = 1.7

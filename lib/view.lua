@@ -8,7 +8,11 @@ local fontData
 local registry = {}
 local Font = {}
 Font.__index = Font
-function Font:getWidth(t) return self.f:getWidth(t) / V.s end
+-- V.caseFn: optional text transform (desktop themes); widths use it too so layouts stay aligned
+V.caseFn = nil
+local function tx(t) if V.caseFn and type(t) == "string" then return V.caseFn(t) end return t end
+V.tx = tx
+function Font:getWidth(t) return self.f:getWidth(tx(t)) / V.s end
 function Font:getHeight() return self.f:getHeight() / V.s end
 
 local function build(fw)
@@ -20,19 +24,32 @@ local function build(fw)
   fw.f = G.newFont(px)
 end
 
-function V.loadFontData()
-  pcall(function()
-    local dir = (os.getenv("WINDIR") or "C:/Windows") .. "/Fonts/"
-    for _, name in ipairs({"bahnschrift.ttf", "segoeui.ttf"}) do
+local faceCache = {}
+local function loadFace(list)
+  local dir = (os.getenv("WINDIR") or "C:/Windows") .. "/Fonts/"
+  for _, name in ipairs(list) do
+    if faceCache[name] then return faceCache[name] end
+    local ok, data = pcall(function()
       local f = io.open(dir .. name, "rb")
-      if f then
-        local d = f:read("*a")
-        f:close()
-        fontData = love.filesystem.newFileData(d, name)
-        return
-      end
-    end
-  end)
+      if not f then return nil end
+      local d = f:read("*a")
+      f:close()
+      return love.filesystem.newFileData(d, name)
+    end)
+    if ok and data then faceCache[name] = data return data end
+  end
+end
+function V.loadFontData()
+  fontData = loadFace({"bahnschrift.ttf", "segoeui.ttf"})
+  V.face = "default"
+end
+-- switch the UI typeface (themes that mimic a desktop app use the system UI font); rebuilds every font
+function V.setFace(name)
+  name = name or "default"
+  if V.face == name then return end
+  V.face = name
+  fontData = loadFace(name == "default" and {"bahnschrift.ttf", "segoeui.ttf"} or {name, "bahnschrift.ttf"})
+  for _, fw in ipairs(registry) do build(fw) end
 end
 
 function V.newFont(size)
@@ -57,7 +74,27 @@ function V.extents()
   return -V.ox / V.s, -V.oy / V.s, (V.winW - V.ox) / V.s, (V.winH - V.oy) / V.s
 end
 
-function V.toVirtual(x, y) return (x - V.ox) / V.s, (y - V.oy) / V.s end
+-- V.fx: whole-screen warp from the silly themes {rot, sx, sy, dx, dy} around the screen centre.
+-- Drawing applies it in V.begin; input uses the exact inverse so clicks still land where you see things.
+V.fx = nil
+function V.warp(x, y) -- virtual -> warped virtual
+  local f = V.fx
+  if not f then return x, y end
+  local px, py = (x - 640) * (f.sx or 1), (y - 360) * (f.sy or 1)
+  local c, s = math.cos(f.rot or 0), math.sin(f.rot or 0)
+  return 640 + (f.dx or 0) + px * c - py * s, 360 + (f.dy or 0) + px * s + py * c
+end
+function V.toVirtual(x, y)
+  local vx, vy = (x - V.ox) / V.s, (y - V.oy) / V.s
+  local f = V.fx
+  if f then
+    local px, py = vx - 640 - (f.dx or 0), vy - 360 - (f.dy or 0)
+    local c, s = math.cos(-(f.rot or 0)), math.sin(-(f.rot or 0))
+    px, py = px * c - py * s, px * s + py * c
+    vx, vy = 640 + px / (f.sx or 1), 360 + py / (f.sy or 1)
+  end
+  return vx, vy
+end
 function V.mouse()
   if V.fakeMouse then return V.fakeMouse[1], V.fakeMouse[2] end -- self-test hook
   return V.toVirtual(love.mouse.getPosition())
@@ -67,6 +104,13 @@ function V.begin()
   G.push()
   G.translate(V.ox, V.oy)
   G.scale(V.s)
+  local f = V.fx
+  if f then
+    G.translate(640 + (f.dx or 0), 360 + (f.dy or 0))
+    G.rotate(f.rot or 0)
+    G.scale(f.sx or 1, f.sy or 1)
+    G.translate(-640, -360)
+  end
   G.setLineWidth(V.lw)
 end
 function V.finish() G.pop() end
@@ -83,22 +127,50 @@ end
 function lg.setFont(fw) G.setFont(fw.f) end
 function lg.print(t, x, y)
   x, y = snap(x, y)
-  G.print(t, x, y, 0, 1 / V.s, 1 / V.s)
+  G.print(tx(t), x, y, 0, 1 / V.s, 1 / V.s)
 end
 function lg.printf(t, x, y, w, align)
   x, y = snap(x, y)
-  G.printf(t, x, y, w * V.s, align or "left", 0, 1 / V.s, 1 / V.s)
+  G.printf(tx(t), x, y, w * V.s, align or "left", 0, 1 / V.s, 1 / V.s)
+end
+-- V.round: corner radius for panels; V.shadow: soft drop shadow under opaque panels
+V.round, V.shadow = 0, false
+function lg.rectangle(mode, x, y, w, h, rx, ry, seg)
+  if V.round > 0 and not rx and w >= 40 and h >= 24 then
+    local r = math.min(V.round, h / 2, w / 2)
+    if V.shadow and mode == "fill" and w >= 60 and h >= 30 then
+      local cr, cg, cb, ca = G.getColor()
+      if ca >= 0.85 then
+        G.setColor(0, 0, 0, 0.05); G.rectangle("fill", x - 1, y + 1, w + 2, h + 3, r + 1, r + 1)
+        G.setColor(0, 0, 0, 0.06); G.rectangle("fill", x, y + 1, w, h + 1, r, r)
+        G.setColor(cr, cg, cb, ca)
+      end
+    end
+    return G.rectangle(mode, x, y, w, h, r, r, seg)
+  end
+  return G.rectangle(mode, x, y, w, h, rx, ry, seg)
 end
 function lg.setLineWidth(w) G.setLineWidth(w * V.lw) end
+local function warpRect(x, y, w, h)
+  if not V.fx then return x, y, w, h end
+  local ax, ay, bx, by = math.huge, math.huge, -math.huge, -math.huge
+  for _, p in ipairs({{x, y}, {x + w, y}, {x, y + h}, {x + w, y + h}}) do
+    local px, py = V.warp(p[1], p[2])
+    ax, ay, bx, by = math.min(ax, px), math.min(ay, py), math.max(bx, px), math.max(by, py)
+  end
+  return ax, ay, bx - ax, by - ay
+end
 function lg.setScissor(x, y, w, h)
   V.sc = x and {x, y, w, h} or nil -- virtual-space clip, used for hover tests
   if x then
+    x, y, w, h = warpRect(x, y, w, h)
     G.setScissor(V.ox + x * V.s, V.oy + y * V.s, math.max(0, w * V.s), math.max(0, h * V.s))
   else
     G.setScissor()
   end
 end
 function lg.intersectScissor(x, y, w, h)
+  x, y, w, h = warpRect(x, y, w, h)
   G.intersectScissor(V.ox + x * V.s, V.oy + y * V.s, math.max(0, w * V.s), math.max(0, h * V.s))
 end
 

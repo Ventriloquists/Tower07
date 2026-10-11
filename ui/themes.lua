@@ -1,5 +1,32 @@
 -- Color schemes. Applying one mutates the shared palette (H.C) in place, so every screen follows.
 local H = require "lib.hud"
+local V = require "lib.view"
+local Glass = require "lib.glass"
+
+-- sentence-style text for desktop themes: "ENERGY" -> "Energy". Short codes (XP, MK1, H2O, 1.2K) stay as they are.
+local caseCache, caseN = {}, 0
+local SMALL = {}
+for w in ("IN TO UP OF AT ON OR BY IS IT AN AS NO BE DO GO IF MY SO WE US AM A"):gmatch("%a+") do SMALL[w] = true end
+local function titleCase(s)
+  local c = caseCache[s]
+  if c then return c end
+  local first = true
+  c = s:gsub("%w+", function(w)
+    local wasFirst = first
+    first = false
+    if w:find("%d") or w:find("%l") then return w end
+    if #w <= 2 then
+      -- small English words read better lowercase; codes like XP, MK, CD, LV stay as they are
+      if SMALL[w] then return wasFirst and (w:sub(1, 1) .. w:sub(2):lower()) or w:lower() end
+      return w
+    end
+    return w:sub(1, 1) .. w:sub(2):lower()
+  end)
+  caseN = caseN + 1
+  if caseN > 4000 then caseCache, caseN = {}, 0 end
+  caseCache[s] = c
+  return c
+end
 local T = {}
 
 T.LIST = {
@@ -79,6 +106,28 @@ T.LIST = {
     bg = {0.06, 0.22, 0.06}, panel = {0.19, 0.38, 0.19}, line = {0.61, 0.74, 0.06}, white = {0.80, 0.86, 0.45},
     dim = {0.55, 0.67, 0.06}, faint = {0.19, 0.38, 0.19}, red = {0.80, 0.86, 0.45}, orange = {0.70, 0.80, 0.30},
     teal = {0.19, 0.38, 0.19}, sea = {0.10, 0.28, 0.10}, gold = {0.85, 0.92, 0.55}}},
+  ---------------------------------------------------------------- desktop apps (rounded UI, system font)
+  {id = "macos", name = "macOS", desc = "Courage. Rounded corners. Traffic lights top left.", style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, c = {
+    bg = {0.925, 0.925, 0.93}, panel = {1, 1, 1}, line = {0.00, 0.478, 1.00}, white = {0.114, 0.114, 0.122},
+    dim = {0.525, 0.525, 0.545}, faint = {0.824, 0.824, 0.843}, red = {1.00, 0.231, 0.188}, orange = {1.00, 0.584, 0.00},
+    teal = {0.62, 0.84, 0.98}, sea = {0.86, 0.92, 0.98}, gold = {1.00, 0.80, 0.00}}},
+  {id = "macdark", name = "macOS DARK", desc = "Dark mode, but expensive.", style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, c = {
+    bg = {0.118, 0.118, 0.118}, panel = {0.173, 0.173, 0.18}, line = {0.039, 0.518, 1.00}, white = {0.96, 0.96, 0.97},
+    dim = {0.596, 0.596, 0.616}, faint = {0.227, 0.227, 0.235}, red = {1.00, 0.271, 0.227}, orange = {1.00, 0.624, 0.039},
+    teal = {0.18, 0.42, 0.58}, sea = {0.11, 0.11, 0.118}, gold = {1.00, 0.839, 0.039}}},
+  {id = "macglass", name = "macOS GLASS", desc = "See-through window: your desktop shows behind the HUD (Windows). [F9 escapes]",
+    style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, glass = 0.94, c = {
+    bg = {12 / 255, 12 / 255, 16 / 255}, panel = {0.15, 0.15, 0.17}, line = {0.35, 0.68, 1.00}, white = {1, 1, 1},
+    dim = {0.78, 0.78, 0.82}, faint = {0.32, 0.32, 0.36}, red = {1.00, 0.33, 0.30}, orange = {1.00, 0.66, 0.12},
+    teal = {0.20, 0.42, 0.62}, sea = {0.16, 0.18, 0.22}, gold = {1.00, 0.86, 0.20}}},
+  {id = "win11", name = "WINDOWS 11", desc = "Mica, Segoe UI and a blue accent. Update and restart?", style = "win", font = "segoeui.ttf", round = 6, shadow = true, titleCase = true, c = {
+    bg = {0.953, 0.953, 0.953}, panel = {0.985, 0.985, 0.985}, line = {0.00, 0.40, 0.75}, white = {0.10, 0.10, 0.10},
+    dim = {0.38, 0.38, 0.38}, faint = {0.85, 0.85, 0.85}, red = {0.77, 0.17, 0.11}, orange = {0.85, 0.45, 0.00},
+    teal = {0.70, 0.83, 0.95}, sea = {0.85, 0.90, 0.96}, gold = {0.80, 0.60, 0.00}}},
+  {id = "win11dark", name = "WINDOWS 11 DARK", desc = "Dark Mica. Still asking you to update.", style = "win", font = "segoeui.ttf", round = 6, shadow = true, titleCase = true, c = {
+    bg = {0.125, 0.125, 0.125}, panel = {0.17, 0.17, 0.17}, line = {0.30, 0.65, 1.00}, white = {1, 1, 1},
+    dim = {0.65, 0.65, 0.65}, faint = {0.28, 0.28, 0.28}, red = {1.00, 0.35, 0.30}, orange = {1.00, 0.70, 0.25},
+    teal = {0.10, 0.30, 0.50}, sea = {0.14, 0.16, 0.20}, gold = {1.00, 0.85, 0.30}}},
   ---------------------------------------------------------------- creative
   {id = "blueprint", name = "BLUEPRINT", desc = "Approved by engineering. Not by legal.", c = {
     bg = {0.05, 0.22, 0.48}, panel = {0.07, 0.27, 0.55}, line = {0.92, 0.96, 1.00}, white = {1, 1, 1},
@@ -151,6 +200,69 @@ T.LIST = {
     bg = {0.30, 0.05, 0.00}, panel = {0.55, 0.12, 0.00}, line = {1.00, 1.00, 0.00}, white = {1, 1, 1},
     dim = {1.00, 0.60, 0.00}, faint = {0.75, 0.25, 0.00}, red = {1.00, 0.00, 0.00}, orange = {1.00, 0.45, 0.00},
     teal = {0.80, 0.20, 0.00}, sea = {0.45, 0.08, 0.00}, gold = {1.00, 1.00, 0.30}}},
+  ---------------------------------------------------------------- social media (rounded web app style)
+  {id = "youtube", name = "YOUTUBE", desc = "Smash that like button. Hit the bell. Harvest.", style = "web", font = "arial.ttf",
+    round = 10, shadow = true, titleCase = true, c = {
+    bg = {0.059, 0.059, 0.059}, panel = {0.13, 0.13, 0.13}, line = {1.00, 0.00, 0.00}, white = {0.95, 0.95, 0.95},
+    dim = {0.67, 0.67, 0.67}, faint = {0.25, 0.25, 0.25}, red = {1.00, 0.20, 0.20}, orange = {1.00, 0.00, 0.20},
+    teal = {0.16, 0.30, 0.50}, sea = {0.09, 0.09, 0.10}, gold = {1.00, 0.85, 0.30}}},
+  {id = "reddit", name = "REDDIT", desc = "Upvotes to the left. Edit: thanks for the gold, kind stranger.", style = "web", font = "segoeui.ttf",
+    round = 8, shadow = true, titleCase = true, c = {
+    bg = {0.855, 0.878, 0.902}, panel = {1, 1, 1}, line = {1.00, 0.27, 0.00}, white = {0.11, 0.11, 0.11},
+    dim = {0.47, 0.49, 0.49}, faint = {0.88, 0.89, 0.90}, red = {0.90, 0.20, 0.10}, orange = {1.00, 0.27, 0.00},
+    teal = {0.44, 0.58, 1.00}, sea = {0.80, 0.86, 0.96}, gold = {1.00, 0.84, 0.21}}},
+  {id = "twitter", name = "TWITTER (X)", desc = "Now called X. Nobody calls it X.", style = "web", font = "segoeui.ttf",
+    round = 16, shadow = false, titleCase = true, c = {
+    bg = {0, 0, 0}, panel = {0.086, 0.094, 0.11}, line = {0.114, 0.608, 0.941}, white = {0.906, 0.914, 0.918},
+    dim = {0.443, 0.463, 0.482}, faint = {0.184, 0.20, 0.212}, red = {0.976, 0.094, 0.502}, orange = {0.114, 0.608, 0.941},
+    teal = {0.08, 0.28, 0.42}, sea = {0.05, 0.07, 0.09}, gold = {0.00, 0.73, 0.49}}},
+  ---------------------------------------------------------------- really dumb (the whole screen misbehaves; F9 escapes)
+  {id = "australia", name = "G'DAY MATE", desc = "Australian edition. Everything is the right way up now. [F9 escapes]",
+    cursed = true, screen = "upsidedown", c = {
+    bg = {0.10, 0.04, 0.02}, panel = {0.17, 0.07, 0.03}, line = {1.00, 0.62, 0.25}, white = {1.00, 0.93, 0.82},
+    dim = {0.75, 0.50, 0.32}, faint = {0.35, 0.18, 0.09}, red = {1.00, 0.30, 0.20}, orange = {1.00, 0.80, 0.30},
+    teal = {0.40, 0.20, 0.08}, sea = {0.05, 0.12, 0.20}, gold = {1.00, 0.85, 0.35}}},
+  {id = "mirror", name = "MIRROR DIMENSION", desc = "Same tower, other side of the glass. Text included. [F9 escapes]",
+    cursed = true, screen = "mirror", c = {
+    bg = {0.05, 0.02, 0.08}, panel = {0.09, 0.04, 0.13}, line = {0.78, 0.60, 1.00}, white = {0.96, 0.93, 1.00},
+    dim = {0.55, 0.45, 0.70}, faint = {0.22, 0.15, 0.30}, red = {1.00, 0.35, 0.50}, orange = {0.60, 1.00, 0.90},
+    teal = {0.25, 0.15, 0.40}, sea = {0.07, 0.04, 0.10}, gold = {1.00, 0.88, 0.50}}},
+  {id = "drunk", name = "ONE TOO MANY", desc = "The tower is fine. You are swaying. [F9 escapes]", cursed = true, screen = "drunk", c = {
+    bg = {0.08, 0.05, 0.01}, panel = {0.14, 0.09, 0.02}, line = {1.00, 0.78, 0.25}, white = {1.00, 0.97, 0.85},
+    dim = {0.70, 0.55, 0.25}, faint = {0.30, 0.22, 0.08}, red = {1.00, 0.40, 0.25}, orange = {1.00, 0.95, 0.70},
+    teal = {0.35, 0.25, 0.08}, sea = {0.10, 0.07, 0.02}, gold = {1.00, 0.95, 0.55}}},
+  {id = "wide", name = "WIDE TOWER", desc = "Wide tower. Wide tower. Wide tower. [F9 escapes]", cursed = true, screen = "wide", c = {
+    bg = {0.024, 0.036, 0.048}, panel = {0.035, 0.058, 0.075}, line = {0.55, 0.86, 0.96}, white = {0.90, 0.97, 1.00},
+    dim = {0.36, 0.52, 0.60}, faint = {0.16, 0.27, 0.32}, red = {1.00, 0.27, 0.22}, orange = {1.00, 0.58, 0.20},
+    teal = {0.13, 0.42, 0.52}, sea = {0.03, 0.075, 0.095}, gold = {1.00, 0.84, 0.36}}},
+  {id = "beyblade", name = "LET IT RIP", desc = "The HUD is a beyblade now. 3, 2, 1... [F9 escapes]", cursed = true, screen = "spin", c = {
+    bg = {0.02, 0.04, 0.10}, panel = {0.04, 0.08, 0.18}, line = {0.30, 0.70, 1.00}, white = {1, 1, 1},
+    dim = {0.45, 0.60, 0.85}, faint = {0.15, 0.22, 0.38}, red = {1.00, 0.35, 0.20}, orange = {1.00, 0.70, 0.10},
+    teal = {0.10, 0.25, 0.50}, sea = {0.03, 0.06, 0.14}, gold = {1.00, 0.85, 0.30}}},
+  {id = "earthquake", name = "EARTHQUAKE", desc = "Magnitude 7.4 and the tower keeps harvesting. [F9 escapes]", cursed = true, screen = "quake", c = {
+    bg = {0.09, 0.07, 0.05}, panel = {0.15, 0.12, 0.09}, line = {0.90, 0.75, 0.55}, white = {1.00, 0.95, 0.88},
+    dim = {0.62, 0.52, 0.40}, faint = {0.30, 0.24, 0.18}, red = {1.00, 0.38, 0.25}, orange = {1.00, 0.70, 0.35},
+    teal = {0.32, 0.25, 0.18}, sea = {0.11, 0.09, 0.07}, gold = {1.00, 0.88, 0.50}}},
+  {id = "tilted", name = "TILTED", desc = "Like you after the third bad pull in a row.", screen = "tilt", c = {
+    bg = {0.03, 0.03, 0.05}, panel = {0.06, 0.06, 0.09}, line = {0.95, 0.40, 0.40}, white = {1, 0.95, 0.95},
+    dim = {0.60, 0.45, 0.48}, faint = {0.24, 0.17, 0.19}, red = {1.00, 0.25, 0.25}, orange = {1.00, 0.65, 0.30},
+    teal = {0.30, 0.14, 0.16}, sea = {0.06, 0.04, 0.05}, gold = {1.00, 0.85, 0.40}}},
+  {id = "breathe", name = "BREATHE IN", desc = "The tower breathes. In for four. Out for four.", screen = "breathe", c = {
+    bg = {0.03, 0.07, 0.07}, panel = {0.05, 0.11, 0.11}, line = {0.45, 0.90, 0.80}, white = {0.90, 1.00, 0.97},
+    dim = {0.40, 0.62, 0.58}, faint = {0.14, 0.26, 0.24}, red = {1.00, 0.45, 0.45}, orange = {0.85, 0.95, 0.60},
+    teal = {0.10, 0.32, 0.30}, sea = {0.04, 0.09, 0.09}, gold = {1.00, 0.92, 0.60}}},
+  {id = "partyhard", name = "PARTY HARD", desc = "120 BPM. The whole HUD is on the beat. [F9 escapes]", cursed = true, screen = "party", anim = "disco", c = {
+    bg = {0.20, 0.00, 0.20}, panel = {0.25, 0.05, 0.25}, line = {1, 1, 1}, white = {1, 1, 1},
+    dim = {1.00, 0.80, 1.00}, faint = {0.50, 0.30, 0.50}, red = {1.00, 0.30, 0.30}, orange = {1.00, 0.90, 0.20},
+    teal = {0.40, 0.10, 0.40}, sea = {0.22, 0.02, 0.22}, gold = {1.00, 0.95, 0.50}}},
+  {id = "dvd", name = "DVD SCREENSAVER", desc = "Will it hit the corner? It will. Eventually. [F9 escapes]", cursed = true, screen = "dvd", anim = "dvd", c = {
+    bg = {0, 0, 0}, panel = {0.06, 0.06, 0.06}, line = {0.30, 0.55, 1.00}, white = {1, 1, 1},
+    dim = {0.60, 0.60, 0.65}, faint = {0.20, 0.20, 0.22}, red = {1.00, 0.30, 0.30}, orange = {1.00, 0.75, 0.25},
+    teal = {0.15, 0.25, 0.45}, sea = {0.04, 0.04, 0.06}, gold = {1.00, 0.90, 0.40}}},
+  {id = "comicsans", name = "COMIC SANS PRO", desc = "For serious business decisions only.", font = "comic.ttf", c = {
+    bg = {1.00, 0.98, 0.90}, panel = {1.00, 0.95, 0.80}, line = {0.20, 0.45, 0.95}, white = {0.15, 0.10, 0.30},
+    dim = {0.45, 0.40, 0.55}, faint = {0.88, 0.82, 0.70}, red = {0.95, 0.20, 0.30}, orange = {1.00, 0.50, 0.10},
+    teal = {0.75, 0.88, 1.00}, sea = {0.85, 0.92, 1.00}, gold = {0.85, 0.60, 0.00}}},
   ---------------------------------------------------------------- cursed: barely or not playable. F9 always escapes.
   {id = "fiftyshades", name = "50 SHADES OF GRAY", desc = "Everything is gray. Good luck. [F9 escapes]", cursed = true, c = {
     bg = {0.50, 0.50, 0.50}, panel = {0.51, 0.51, 0.51}, line = {0.53, 0.53, 0.53}, white = {0.55, 0.55, 0.55},
@@ -205,6 +317,52 @@ T.LIST = {
     teal = {0.25, 0.15, 0.40}, sea = {0.03, 0.02, 0.05}, gold = {1.00, 0.85, 0.40}}},
 }
 
+-- screen warps: the silly themes move the whole HUD (input is mapped back, so everything stays clickable)
+local dvd = {x = 120, y = 80, vx = 150, vy = 110, hue = 0.6, last = nil}
+T.SCREEN = {
+  upsidedown = function(t) return {rot = math.pi} end,
+  mirror = function(t) return {sx = -1} end,
+  drunk = function(t)
+    return {rot = 0.05 * math.sin(t * 0.9) + 0.02 * math.sin(t * 2.3), dx = 22 * math.sin(t * 0.7), dy = 12 * math.sin(t * 1.13),
+      sx = 1 + 0.03 * math.sin(t * 0.5), sy = 1 + 0.03 * math.sin(t * 0.61)}
+  end,
+  wide = function(t) return {sx = 1.45, sy = 0.82} end,
+  spin = function(t) return {rot = t * 0.6, sx = 0.78, sy = 0.78} end,
+  quake = function(t)
+    local r = love.math.random
+    return {dx = (r() * 2 - 1) * 7, dy = (r() * 2 - 1) * 7, rot = (r() * 2 - 1) * 0.008}
+  end,
+  tilt = function(t) return {rot = 0.14, sx = 0.88, sy = 0.88} end,
+  breathe = function(t) local s = 1 + 0.045 * math.sin(t * math.pi / 4) return {sx = s, sy = s} end,
+  party = function(t)
+    local beat = (t * 2) % 1                       -- 120 bpm
+    local kick = math.max(0, 1 - beat * 4)
+    local side = math.floor(t * 2) % 2 == 0 and 1 or -1
+    return {sx = 1 + 0.05 * kick, sy = 1 + 0.07 * kick, rot = 0.035 * side * kick, dy = -10 * kick}
+  end,
+  dvd = function(t)
+    -- the whole game bounces around like the logo; every wall changes colour, a corner is a celebration
+    local now = love.timer.getTime()
+    local dt = math.min(0.1, now - (dvd.last or now))
+    dvd.last = now
+    local s = 0.42
+    local hw, hh = 1280 * s / 2, 720 * s / 2
+    dvd.x, dvd.y = dvd.x + dvd.vx * dt, dvd.y + dvd.vy * dt
+    local hitX, hitY = false, false
+    if dvd.x < -640 + hw then dvd.x = -640 + hw; dvd.vx = math.abs(dvd.vx); hitX = true end
+    if dvd.x > 640 - hw then dvd.x = 640 - hw; dvd.vx = -math.abs(dvd.vx); hitX = true end
+    if dvd.y < -360 + hh then dvd.y = -360 + hh; dvd.vy = math.abs(dvd.vy); hitY = true end
+    if dvd.y > 360 - hh then dvd.y = 360 - hh; dvd.vy = -math.abs(dvd.vy); hitY = true end
+    if hitX or hitY then dvd.hue = (dvd.hue + 0.17 + love.math.random() * 0.2) % 1 end
+    if hitX and hitY then
+      local FX = require "game.fx"
+      FX.slam("CORNER!!!", 640, 300, H.C.gold, true)
+      FX.toast("IT HIT THE CORNER", "Everyone in the office stands up and cheers.", H.C.gold)
+    end
+    return {sx = s, sy = s, dx = dvd.x, dy = dvd.y}
+  end,
+}
+
 -- animated themes recolour the live palette every frame (the theme's c table stays the base / preview)
 local hue = function(h) return H.hue(h) end
 T.ANIM = {
@@ -229,6 +387,11 @@ T.ANIM = {
     C.panel[1] = 0.45 + 0.15 * math.sin(t * 1.7)
     C.orange[2] = 0.35 + 0.2 * math.sin(t * 3.1)
   end,
+  dvd = function(t, C)
+    local r, g, b = hue(dvd.hue)
+    C.line[1], C.line[2], C.line[3] = r, g, b
+    C.orange[1], C.orange[2], C.orange[3] = hue(dvd.hue + 0.5)
+  end,
   missing = function(t, C)
     -- checkerboard flip: magenta and black swap roles every 1.5 seconds
     local on = math.floor(t / 1.5) % 2 == 0
@@ -250,6 +413,7 @@ T.ANIM = {
 function T.animate(t)
   local th = T.current
   if th and th.anim and T.ANIM[th.anim] then T.ANIM[th.anim](t, H.C) end
+  V.fx = th and th.screen and T.SCREEN[th.screen] and T.SCREEN[th.screen](t) or nil
 end
 
 function T.get(id)
@@ -264,6 +428,12 @@ end
 function T.apply(id)
   local t = T.get(id)
   T.current = t
+  -- desktop-app themes: drawing style, system font, optional see-through window
+  H.style = t.style
+  V.setFace(t.font)
+  V.round, V.shadow = t.round or 0, t.shadow == true
+  V.caseFn = t.titleCase and titleCase or nil
+  if t.glass then Glass.set(true, t.c.bg, t.glass) elseif Glass.on then Glass.set(false) end
   for k, v in pairs(t.c) do
     local dst = H.C[k]
     if dst then dst[1], dst[2], dst[3] = v[1], v[2], v[3] end

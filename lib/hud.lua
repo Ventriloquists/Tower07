@@ -166,7 +166,14 @@ function H.setTip(title, text) H.tip = {title = title, text = text} end
 ----------------------------------------------------------------------
 -- Primitives
 ----------------------------------------------------------------------
+-- H.style: set by desktop-app themes ("mac" / "win"): rounded outlines instead of corner brackets, no hatching
+H.style = nil
 function H.brackets(x, y, w, h, l, c, a)
+  if H.style then
+    col(c, (a or 1) * 0.55)
+    lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1, 6, 6)
+    return
+  end
   col(c, a)
   l = l or 8
   lg.line(x, y + l, x, y, x + l, y)
@@ -176,6 +183,7 @@ function H.brackets(x, y, w, h, l, c, a)
 end
 
 function H.hatch(x, y, w, h, c, a, gap)
+  if H.style then return end
   lg.push("all")
   lg.intersectScissor(x, y, w, h)
   col(c, a)
@@ -391,15 +399,16 @@ function H.button(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold)
   if primary and enabled then
     -- filled call-to-action with a soft pulse
     local t = love.timer.getTime()
+    local R = H.style and 6 or 0
     col(c, hov and 1 or (0.82 + 0.1 * math.sin(t * 4)))
-    lg.rectangle("fill", x, y, w, h)
+    lg.rectangle("fill", x, y, w, h, R, R)
     col(C.white, hov and 0.9 or 0.5)
-    lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    if not H.style then lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1) end
     lg.setFont(font)
     col(C.bg)
   else
     col(c, hov and 0.25 or (enabled and 0.09 or 0.03))
-    lg.rectangle("fill", x, y, w, h)
+    lg.rectangle("fill", x, y, w, h, H.style and 6 or 0, H.style and 6 or 0)
     H.brackets(x, y, w, h, 6, enabled and c or C.faint, hov and 1 or 0.85)
     lg.setFont(font)
     col(enabled and (hov and C.white or c) or C.faint)
