@@ -62,7 +62,7 @@ function G.newState()
     combines = 0, tetCharge = 0, tetStrikes = 0, autoFuse = 0, fiestas = 0, fiestaPulls = 0, bestChain = 0, alert = -1,
     autoLoadout = true, autoUpgrade = false, autoSalvage = 0, bounties = 0, rhythms = 0, overheats = 0, mythicRolls = 0, transmutes = 0, forged = 0, promoted = 0,
     perks = {}, perkPoints = 0, sxp = 0, passTier = 0, passClaimed = 0, achClaim = {}, logClaims = 0,
-    rarityEver = {0, 0, 0, 0, 0, 0}, prismEver = 0, prismatic = 0, doubled = 0}
+    rarityEver = {0, 0, 0, 0, 0, 0}, prismEver = 0, prismatic = 0, respects = 0, over9000 = false, doubled = 0}
   for i = 1, #GENS do s.gens[i] = 0; s.ubt[i] = 0 end
   return s
 end
@@ -444,17 +444,24 @@ local CALL_A = {"GHOST", "VIPER", "NOMAD", "RAVEN", "WARDEN", "ECHO", "SPECTER",
   "MANTIS", "WRAITH", "COBALT", "EMBER", "ONYX", "SIGNAL", "DRIFTER", "TALON", "BEACON", "CINDER", "VESPER",
   "ORBIT", "STATIC", "TEMPEST", "QUILL", "MERIDIAN", "SENTRY", "LANTERN", "CIPHER", "HUSK", "MOTH", "SABLE",
   "PILGRIM", "ARGUS", "VECTOR", "RELIC", "JUNO", "ATLAS", "TIDE", "SPARROW"}
+local MEME_A = {"DOGE", "SANIC", "STONKS", "BONK", "CHUNGUS", "YEET", "POGGERS", "SUS", "SHREK", "UGANDA", "KEANU", "HARAMBE"}
 local CALL_B = {"PRIME", "ZERO", "NINE", "ASCENDANT", "SOVEREIGN", "ETERNAL", "OMEGA", "REX", "MAXIMUS", "INFINITE"}
+local MEME_B = {"THE SUS", "EZ", "IRL", "XD", "OF DOOM", "DELUXE", "9000"}
+-- meme themes mix in meme callsigns; everywhere else the names stay serious
+local function pick(list, meme)
+  if G.memeOn and love.math.random() < 0.35 then return meme[love.math.random(#meme)] end
+  return list[love.math.random(#list)]
+end
 function G.droneName()
   local used = {}
   for _, d in ipairs(S.drones) do if d.name then used[d.name] = true end end
   for _ = 1, 30 do
-    local n = CALL_A[love.math.random(#CALL_A)]
+    local n = pick(CALL_A, MEME_A)
     if not used[n] then return n end
   end
   return CALL_A[love.math.random(#CALL_A)] .. "-" .. love.math.random(2, 9)
 end
-function G.grandName(n) return n .. " " .. CALL_B[love.math.random(#CALL_B)] end
+function G.grandName(n) return n .. " " .. pick(CALL_B, MEME_B) end
 function G.nameFor(r)
   local n = G.droneName()
   if r >= 4 then n = G.grandName(n) end
@@ -525,7 +532,10 @@ function G.fabricate(n, useToken)
     made = made + 1
     table.insert(G.choiceQueue, G.rollCandidates())
   end
-  if made == 0 then FX.play("err") else G.addXP(20 * made) end
+  if made == 0 then
+    FX.play("err")
+    if G.meme and #S.drones + #G.choiceQueue >= G.bayCap() then G.meme("bayFull") end
+  else G.addXP(20 * made) end
   return made
 end
 function G.cardX(k) return 640 + (k - 2) * 250 end
@@ -1022,6 +1032,7 @@ end
 -- Tapping
 ----------------------------------------------------------------------
 function G.jackpot(x, y)
+  if G.meme then G.meme("jackpot") end
   local e = math.max(1000, G.getCps() * 1800)
   G.gain(e)
   S.hydro = S.hydro + 10 + S.rank
@@ -1059,6 +1070,7 @@ function G.heatUpdate(dt)
     if G.sweetT >= G.RHYTHM_TIME then
       G.sweetT = 0
       S.rhythms = (S.rhythms or 0) + 1
+      if G.meme then G.meme("rhythm") end
       if not G.hasBuff("CORE SURGE") then G.addBuff("CORE SURGE", "prod", 3, 15 + 3 * G.tr("core_surge")) end
       FX.toast("PERFECT RHYTHM", "12 seconds in the sweet spot: Core Surge ignited. Output x3 for 15s.", C.gold)
       FX.play("surge", 1.2)
@@ -1081,6 +1093,7 @@ function G.tap(x, y, auto, count)
     if G.heat >= 1 then
       G.heat, G.overheatT, G.combo = 1, G.OVERHEAT_TIME, 0
       S.overheats = (S.overheats or 0) + 1
+      if G.meme then G.meme("overheat") end
       FX.toast("CORE OVERHEAT", "Taps locked for " .. G.OVERHEAT_TIME .. "s while the coolant vents. Keep the heat in the gold zone.", C.red)
       FX.play("raid", 1.4, 0.8)
       FX.shake = math.max(FX.shake, 12)
@@ -1387,6 +1400,7 @@ function G.dmMult() return 1 + 0.1 * G.tr("eco_cd") end
 function G.dmPotential() return math.floor(math.sqrt(S.totalEarned / 1e9) * G.dmMult()) end
 function G.dmGain() return math.max(0, G.dmPotential() - S.dmTotal) end
 function G.doReboot()
+  if G.meme then G.meme("reboot") end
   local g = G.dmGain()
   if g < 1 then return end
   S.dm, S.dmTotal = S.dm + g, S.dmTotal + g
@@ -1706,6 +1720,7 @@ function G.update(dt)
   if G.tacUpdate then G.tacUpdate(dt) end
   if G.metaUpdate then G.metaUpdate(dt) end
   if G.fiestaUpdate then G.fiestaUpdate(dt) end
+  if G.memeOn and not S.over9000 and G.getCps() > 9000 then S.over9000 = true; G.meme("over9000") end
   if G.autopilotUpdate then G.autopilotUpdate(dt) end
   G.heatUpdate(dt)
 

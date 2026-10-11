@@ -134,8 +134,8 @@ local function rows(section)
       vol("ambient", "REACTOR HUM", "Ambient drone of a very large machine."),
       {"MUTE IN BACKGROUND", "Silence the game while the window is not focused.", function(xr, y, cl)
         toggle(xr, y, v.muteUnfocused, function() set("muteUnfocused", not v.muteUnfocused) end, cl) end},
-      {"MEME LOOT SOUNDS", "LEGENDARY = vine boom, MYTHIC = air horn, PRISM = all of it at once. Slams thud harder.", function(xr, y, cl)
-        toggle(xr, y, v.memeSounds, function() set("memeSounds", not v.memeSounds); if v.memeSounds then FX.play("airhorn") end end, cl) end},
+      {"MEME CAPTIONS", "Meme themes only: Impact-font captions for big moments.", function(xr, y, cl)
+        toggle(xr, y, v.memeCaptions ~= false, function() set("memeCaptions", v.memeCaptions == false) end, cl) end},
     }
   elseif section == "gameplay" then
     return {
@@ -274,6 +274,7 @@ local function themes(clip)
     local tag, tcol = nil, C.line
     if t.cursed then tag, tcol = "CURSED", C.red
     elseif t.glass then tag, tcol = "GLASS", C.holo
+    elseif t.sounds == "meme" then tag, tcol = "MEME", C.gold
     elseif t.screen then tag, tcol = "WARP", C.orange
     elseif t.anim then tag, tcol = "ANIMATED", C.holo
     elseif t.style then tag, tcol = "APP", C.line end

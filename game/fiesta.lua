@@ -142,6 +142,7 @@ function G.startFiesta()
   for _, p in ipairs(pulls) do if better(p.d, bestPull) then bestPull = p.d end end
   local tally = {0, 0, 0, 0, 0, 0}
   for _, p in ipairs(pulls) do tally[p.r] = tally[p.r] + 1 end
+  if G.meme then G.meme(#merges >= 10 and "combo" or "fiesta") end
   G.fiesta = {phase = "pull", t = 0, n = n, bonus = bonus, tokens = tok, hydro = h,
     pulls = pulls, merges = merges, start = start, kept = kept, best = kept[1] or bestPull, bestPull = bestPull,
     scrapped = scrapped, scrapParts = scrapParts, candParts = candParts, tally = tally,

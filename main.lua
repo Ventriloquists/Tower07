@@ -20,6 +20,8 @@ local Th = require "ui.themes"
 local F = require "ui.frame"
 local Ov = require "ui.overlays"
 local Shatter = require "ui.shatter"
+local Memes = require "game.memes"
+G.meme = Memes.event
 local SettingsUI = require "ui.settings"
 local Disguise = require "ui.disguise"
 local Reactor = require "ui.reactor"
@@ -95,13 +97,20 @@ local function applySettings(key)
   FX.setAmbient(v.ambient)
   FX.density = v.confetti
   FX.reduced = v.reducedMotion
-  FX.meme = v.memeSounds == true
   H.showTips = v.tooltips
   H.keywords = v.keywords
   G.fastReveal = v.fastReveal
   G.saveInterval = v.autosave
   G.breakInterval = v.grass * 60
   Th.apply(v.theme)
+  -- memes live only inside the meme themes: sounds, captions, chatter, titles, callsigns
+  local th = Th.get(v.theme)
+  local memeTheme = th.sounds == "meme"
+  G.memeOn = memeTheme
+  FX.meme = memeTheme and not Memes.available() -- synth meme loot sounds only as a fallback without the sounds folder
+  if FX.soundPack ~= "stupid" and memeTheme and Memes.available() then FX.soundPack = "meme" end
+  Memes.enabled = memeTheme
+  Memes.captionsOn = memeTheme and v.memeCaptions ~= false
   love.mouse.setVisible((not v.reticle) or G.bossMode == true)
   lastVolume = nil
   applyVolume()
@@ -687,14 +696,40 @@ local function runSelftest()
   if f == 773 then V.fakeMouse = nil; Set.v.theme = "australia"; applySettings("theme"); G.tab = "core" end
   if f == 775 then shot("theme_australia") end
   if f == 776 then Set.v.theme = "dvd"; applySettings("theme") end
+  if f == 777 then
+    local ok = FX.soundPack == "stupid"
+    for _, n in ipairs({"quack", "boing", "squeak", "fart", "honk", "kazoo", "slidewhistle", "bonk", "sadtrombone", "bruh", "dialup"}) do
+      if not FX.snd[n] then ok = false end
+    end
+    FX.play("tap"); FX.play("err"); FX.play("reboot")
+    G.selftestSounds = ok and "sounds-ok" or "sounds-FAIL"
+  end
   if f == 779 then shot("theme_dvd") end
   if f == 781 then Set.v.theme = "oblivion"; applySettings("theme") end
+  -- meme pack
+  if f == 782 then
+    Set.v.theme = "mlg"; applySettings("theme"); G.tab = "core"
+    local played = Memes.play("triple", 0.01, 0)
+    Memes.caps = {}; Memes.resetCaption()
+    G.meme("overheat")
+    G.selftestMemes = (Memes.available() and played and FX.soundPack == "meme" and #Memes.caps == 1) and "memes-ok" or
+      string.format("memes-FAIL avail=%s played=%s pack=%s caps=%d", tostring(Memes.available()), tostring(played), tostring(FX.soundPack), #Memes.caps)
+    Memes.hitmarker(640, 344)
+  end
+  if f == 784 then shot("theme_mlg_caption") end
+  if f == 785 then Set.v.theme = "doge"; applySettings("theme"); for _ = 1, 4 do Memes.update(1.2) end end
+  if f == 787 then shot("theme_doge") end
+  if f == 788 then
+    Memes.caps = {}; Set.v.theme = "oblivion"; applySettings("theme")
+    Memes.resetCaption(); G.meme("overheat")
+    if #Memes.caps > 0 or FX.soundPack == "meme" or G.memeOn or G.rankTitle(9999):find("9000") then G.selftestMemes = "memes-LEAK" end
+  end
   if f == 790 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
       " " .. tostring(G.selftestImport) .. " " .. tostring(G.selftestReset) .. " " .. tostring(G.selftestLazy) ..
       " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
       " " .. tostring(G.selftestTet) .. " " .. tostring(G.selftestFiesta) .. " " .. tostring(G.selftestHeat) ..
-      " " .. tostring(G.selftestBoss) .. " " .. tostring(G.selftestAltar) .. " " .. tostring(G.selftestPilot) .. " " .. tostring(G.selftestForge) .. " " .. tostring(G.selftestTree) .. " " .. tostring(G.selftestShatter) .. " " .. tostring(G.selftestRigs) .. " " .. tostring(G.selftestPrism) ..
+      " " .. tostring(G.selftestBoss) .. " " .. tostring(G.selftestAltar) .. " " .. tostring(G.selftestPilot) .. " " .. tostring(G.selftestForge) .. " " .. tostring(G.selftestTree) .. " " .. tostring(G.selftestShatter) .. " " .. tostring(G.selftestRigs) .. " " .. tostring(G.selftestPrism) .. " " .. tostring(G.selftestSounds) .. " " .. tostring(G.selftestMemes) ..
       " " .. (G.mapReport():gsub("\n", " | ")) ..
       " rank=" .. G.S.rank .. " pass=" .. G.S.passTier .. "/" .. G.S.passClaimed)
     love.event.quit()
@@ -717,6 +752,7 @@ function love.update(dt)
   H.updateHolo(love.timer.getTime())
   Th.animate(love.timer.getTime())
   Shatter.update(dt)
+  Memes.update(dt)
   applyVolume()
   if G.bossMode then bossT = bossT + dt end
 
@@ -828,6 +864,7 @@ function love.draw()
   -- particles go over card reveals, but under the settings screen
   if G.settingsOpen then FX.drawParticles(); Ov.draw() else Ov.draw(); FX.drawParticles() end
   FX.drawPrism()
+  Memes.draw()
   local isNapping = napping() or G.forceNap
   if isNapping then drawNap() end
   if Set.v.showFps then
@@ -863,6 +900,7 @@ function love.mousepressed(sx, sy, b)
   if wake() then return end -- the waking click is swallowed
   if G.bossMode or b ~= 1 then return end
   local x, y = V.toVirtual(sx, sy)
+  Memes.hitmarker(x, y)
   if Ov.isModal() then
     local h = H.click(x, y)
     if h and h.hold == "drag" then dragHit = h end
@@ -920,6 +958,7 @@ function love.keypressed(k)
   end
   if G.bossMode then return end
   if k == "f11" or (k == "return" and love.keyboard.isDown("lalt", "ralt")) then toggleFullscreen() return end
+  if k == "f" and Memes.pressF(G.S) then return end
   -- panic button for the cursed themes: F9 always restores the default palette
   if k == "f9" then Set.v.theme = "oblivion"; Set.save(); applySettings("theme"); FX.toast("THEME RESET", "Back to OBLIVION. Your eyes thank you.", H.C.line) return end
   if G.settingsOpen then

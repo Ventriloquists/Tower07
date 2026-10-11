@@ -135,6 +135,104 @@ function FX.init()
     local v = math.sin(TAU * f * t) * 0.6 + math.sin(TAU * f * 2.01 * t) * 0.15 + math.sin(TAU * 110 * t) * 0.2
     return v * (1 - p) ^ 0.5 * math.min(1, p * 20) * 0.32
   end)
+  ------------------------------------------------------------------ stupid pack (cursed themes)
+  local function saw(x) return 2 * (x - math.floor(x)) - 1 end
+  local function sq(x) return (x - math.floor(x)) < 0.5 and 1 or -1 end
+  do -- duck quack: nasal square with a pitch drop
+    local ph = 0
+    s.quack = synth(0.2, function(t, p)
+      ph = ph + (520 - 260 * p) / 44100
+      local v = sq(ph) * 0.45 + math.sin(TAU * ph * 2) * 0.3 + math.sin(TAU * ph * 3.1) * 0.15
+      return v * math.min(1, p * 40) * (1 - p) ^ 1.4 * 0.35
+    end)
+  end
+  do -- cartoon spring boing
+    local ph = 0
+    s.boing = synth(0.55, function(t, p)
+      ph = ph + (230 + 140 * math.sin(TAU * 11 * t) * math.exp(-4 * t)) / 44100
+      return math.sin(TAU * ph) * (1 - p) ^ 1.2 * 0.45
+    end)
+  end
+  do -- rubber duck squeak
+    local ph = 0
+    s.squeak = synth(0.13, function(t, p)
+      ph = ph + (1700 + 1200 * p) / 44100
+      return (math.sin(TAU * ph) + (love.math.random() * 2 - 1) * 0.08) * math.sin(math.pi * p) * 0.25
+    end)
+  end
+  do -- fart: fluttering low buzz, smoothed noise
+    local ph, lp = 0, 0
+    s.fart = synth(0.7, function(t, p)
+      ph = ph + (75 + 25 * math.sin(TAU * 23 * t) - 30 * p) / 44100
+      local raw = saw(ph) * (1 + 0.7 * math.sin(TAU * 31 * t)) + (love.math.random() * 2 - 1) * 0.6
+      lp = lp + (raw - lp) * 0.18
+      return clamp(lp * 1.6, -1, 1) * math.min(1, p * 15) * (1 - p) ^ 0.8 * 0.55
+    end)
+  end
+  s.honk = synth(0.5, function(t, p) -- clown horn: honk-honk
+    local on = (t < 0.18) or (t > 0.25 and t < 0.45)
+    if not on then return 0 end
+    local f = t < 0.2 and 440 or 370
+    return (sq(f * t) * 0.5 + sq(f * 1.26 * t) * 0.3) * 0.25
+  end)
+  do -- kazoo fanfare
+    local notes = {392, 392, 523, 659, 784, 784}
+    local ph = 0
+    s.kazoo = synth(1.3, function(t, p)
+      local k = math.min(#notes, math.floor(t / 0.2) + 1)
+      ph = ph + notes[k] * (1 + 0.02 * math.sin(TAU * 6 * t)) / 44100
+      local v = saw(ph)
+      v = v * math.abs(v) + 0.3 * saw(ph * 2)            -- buzzy
+      local lp = (t % 0.2) / 0.2
+      return v * (k == #notes and 1 or (1 - lp * 0.5)) * (1 - p) ^ 0.4 * 0.22
+    end)
+  end
+  do -- slide whistle up
+    local ph = 0
+    s.slidewhistle = synth(0.6, function(t, p)
+      ph = ph + (500 + 1100 * p + 30 * math.sin(TAU * 7 * t)) / 44100
+      return math.sin(TAU * ph) * math.sin(math.pi * p) * 0.3
+    end)
+  end
+  s.bonk = synth(0.3, function(t, p) -- wood block bonk
+    return (math.sin(TAU * 820 * t) * math.exp(-28 * t) + math.sin(TAU * 170 * t) * math.exp(-10 * t) * 0.8
+      + (love.math.random() * 2 - 1) * math.exp(-120 * t) * 0.5) * 0.5
+  end)
+  do -- sad trombone: wah wah wah waaaah
+    local notes = {{0, 0.42, 233}, {0.48, 0.9, 220}, {0.96, 1.38, 208}, {1.44, 2.3, 196}}
+    local ph = 0
+    s.sadtrombone = synth(2.3, function(t, p)
+      local f
+      for _, n in ipairs(notes) do if t >= n[1] and t < n[2] then f = n end end
+      if not f then return 0 end
+      local local_p = (t - f[1]) / (f[2] - f[1])
+      local vib = f[3] == 196 and 1 + 0.03 * math.sin(TAU * 5 * t) or 1
+      ph = ph + f[3] * vib / 44100
+      local v = saw(ph) * 0.5 + math.sin(TAU * ph) * 0.5
+      return v * math.sin(math.pi * math.min(1, local_p * 1.2)) * 0.32
+    end)
+  end
+  do -- "bruh": low voice-ish vowel with a 'b' pop
+    local ph = 0
+    s.bruh = synth(0.42, function(t, p)
+      ph = ph + (110 - 25 * p) / 44100
+      local v = 0
+      for k = 1, 9 do
+        local f = 110 * k
+        local amp = math.exp(-((f - 650) / 380) ^ 2) + 0.4 * math.exp(-((f - 1100) / 300) ^ 2)
+        v = v + math.sin(TAU * ph * k) * amp
+      end
+      local pop = (love.math.random() * 2 - 1) * math.exp(-80 * t) * 0.6
+      return (v * 0.35 + pop) * math.min(1, p * 25) * (1 - p) ^ 0.9 * 0.6
+    end)
+  end
+  s.dialup = synth(1.3, function(t, p) -- 56k modem handshake
+    local seg = math.floor(t * 9)
+    local f = ({1200, 2100, 980, 1650, 2400, 1300, 1800, 2250, 1000, 2600, 1500, 2000})[seg % 12 + 1]
+    local v = math.sin(TAU * f * t) * 0.5 + math.sin(TAU * f * 1.5 * t) * 0.2
+    if seg >= 6 then v = v * 0.5 + (love.math.random() * 2 - 1) * 0.45 end
+    return v * 0.18 * (1 - p * 0.3)
+  end)
   s.raid = synth(0.8, function(t, p)
     local f = 440 + 220 * math.sin(TAU * 2.5 * t)
     return (math.sin(TAU * f * t) > 0 and 1 or -1) * 0.07 * (1 - p)
@@ -152,9 +250,24 @@ local CATEGORY = {
   signal = "alert", alert = "alert", raid = "alert", reboot = "alert",
 }
 
+-- cursed themes swap every sound for something stupid (and slightly random in pitch)
+FX.soundPack = nil
+local STUPID = {
+  tap = "quack", tick = "squeak", buy = "boing", err = "fart", hit = "bonk", laser = "squeak", boom = "bonk",
+  alert = "honk", raid = "honk", signal = "dialup", catch = "slidewhistle", collect = "slidewhistle", surge = "slidewhistle",
+  log = "kazoo", rank = "kazoo", unlock = "kazoo", jackpot = "kazoo", mythic = "kazoo", prism = "kazoo", crate = "boing",
+  reboot = "sadtrombone", crack = "bonk", shatter = "sadtrombone", slam = "bruh", vineboom = "bruh", airhorn = "honk",
+  illuminati = "kazoo",
+}
 function FX.play(name, pitch, vol)
+  local orig = name
+  if FX.soundPack == "meme" and FX.memeHook and FX.memeHook(name) then return end
+  if FX.soundPack == "stupid" and STUPID[name] then
+    name = STUPID[name]
+    pitch = (pitch or 1) * (0.85 + love.math.random() * 0.35)
+  end
   if FX.muted or not FX.snd[name] then return end
-  local v = (vol or 1) * FX.vol[CATEGORY[name] or "reward"]
+  local v = (vol or 1) * FX.vol[CATEGORY[orig] or "reward"]
   if v <= 0.001 then return end
   local s = FX.snd[name]:clone()
   s:setPitch(pitch or 1)
@@ -255,6 +368,7 @@ function FX.prismEvent(label, x, y)
     return
   end
   FX.prismLast = now
+  if FX.onPrism then FX.onPrism() end
   FX.prism = {t = 0, label = label or "PRISM", x = x or 640, y = y or 360, max = 5.2, rings = 0}
   FX.lootSound(3)
   FX.flashTo({1, 1, 1}, 1)

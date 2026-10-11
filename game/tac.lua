@@ -359,6 +359,7 @@ function G.openCrate(k, quiet, sx, sy)
   end
   if c.r >= 5 then
     G.rankBanner = {t = 0, title = L.name .. " CACHE", text = table.concat(lines, "   //   "), c = col}
+    if G.meme and c.r == 5 then G.meme("legendary") elseif G.meme and c.r == 6 then G.meme("mythic") end
     if c.r >= 7 or prismDrone then FX.prismEvent(prismDrone and "PRISM" or L.name, px, py)
     elseif c.r == 6 then FX.slam(L.name .. "!", px, py, col); FX.lootSound(2)
     else FX.lootSound(1) end
@@ -435,6 +436,7 @@ function G.spawnEnemy(kind)
     dps = def.dps * F, code = string.format("%02d %03d", love.math.random(10, 99), love.math.random(0, 999)),
     raid = 0, flash = 0, wob = rnd(0, 6)}
   table.insert(G.enemies, e)
+  if def.boss and G.meme then G.meme("bossSpawn") end
   if def.boss then
     e.bounty = G.BOUNTY_TIME + 60 * G.tr("map_bounty")
     G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it within " .. H.fmtTime(G.BOUNTY_TIME) .. " for the BOUNTY: a LEGENDARY crate + 3 fab tokens.", c = C.red}
@@ -478,6 +480,7 @@ function G.killEnemy(e)
   if e.def.boss then
     S.bosses = S.bosses + 1
     S.bossDown = true
+    if G.meme then G.meme((e.bounty or 0) > 0 and "bounty" or "bossKill") end
     if (e.bounty or 0) > 0 then
       S.bounties = (S.bounties or 0) + 1
       S.tokens = S.tokens + 3
@@ -530,6 +533,7 @@ end
 function G.advanceZone()
   local S = G.S
   if not S.bossDown then FX.play("err") return end
+  if G.meme then G.meme("zoneClear") end
   S.zone = S.zone + 1
   G.newMap()
   G.recalc()
@@ -630,6 +634,7 @@ function G.tetStrike()
   if not G.tetReady() or not t then FX.play("err") return end
   S.tetCharge = 0
   S.tetStrikes = (S.tetStrikes or 0) + 1
+  if G.meme then G.meme("tet") end
   local tx, ty = t.x, t.y
   local hit = 0
   for k = #G.enemies, 1, -1 do
@@ -818,6 +823,7 @@ function G.tacUpdate(dt)
         d.hp = d.hp - per
         if d.hp <= 0 then
           d.down = now + (S.pupg.repair and 14 or 40)
+          if G.meme then G.meme("mia") end
           d.hunt = nil
           d.hp = G.droneMaxHp(d)
           if onMap() then

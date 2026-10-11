@@ -200,6 +200,31 @@ T.LIST = {
     bg = {0.30, 0.05, 0.00}, panel = {0.55, 0.12, 0.00}, line = {1.00, 1.00, 0.00}, white = {1, 1, 1},
     dim = {1.00, 0.60, 0.00}, faint = {0.75, 0.25, 0.00}, red = {1.00, 0.00, 0.00}, orange = {1.00, 0.45, 0.00},
     teal = {0.80, 0.20, 0.00}, sea = {0.45, 0.08, 0.00}, gold = {1.00, 1.00, 0.30}}},
+  ---------------------------------------------------------------- meme pack (real meme sounds + gags)
+  {id = "mlg", name = "MLG PRO", desc = "Hitmarkers. Air horns. Mountain Dew. 360 no scope.", sounds = "meme", memeFX = "mlg", c = {
+    bg = {0.02, 0.02, 0.05}, panel = {0.06, 0.04, 0.10}, line = {0.45, 1.00, 0.10}, white = {1, 1, 1},
+    dim = {0.70, 0.50, 1.00}, faint = {0.25, 0.15, 0.40}, red = {1.00, 0.20, 0.20}, orange = {1.00, 0.50, 0.00},
+    teal = {0.30, 0.10, 0.50}, sea = {0.05, 0.03, 0.10}, gold = {1.00, 0.90, 0.10}}},
+  {id = "doge", name = "MUCH DOGE", desc = "such theme. very harvest. wow.", sounds = "meme", memeFX = "doge", font = "comic.ttf", c = {
+    bg = {0.98, 0.93, 0.78}, panel = {1.00, 0.97, 0.88}, line = {0.85, 0.55, 0.15}, white = {0.25, 0.15, 0.05},
+    dim = {0.55, 0.40, 0.25}, faint = {0.88, 0.80, 0.62}, red = {0.90, 0.25, 0.20}, orange = {0.95, 0.60, 0.10},
+    teal = {0.60, 0.85, 0.95}, sea = {0.85, 0.90, 0.95}, gold = {0.85, 0.65, 0.00}}},
+  {id = "illuminati", name = "ILLUMINATI CONFIRMED", desc = "The tower was in on it all along.", sounds = "meme", memeFX = "illuminati", c = {
+    bg = {0.01, 0.03, 0.01}, panel = {0.03, 0.07, 0.03}, line = {0.35, 1.00, 0.45}, white = {0.85, 1.00, 0.85},
+    dim = {0.30, 0.60, 0.35}, faint = {0.10, 0.22, 0.12}, red = {1.00, 0.30, 0.30}, orange = {0.90, 1.00, 0.40},
+    teal = {0.10, 0.30, 0.15}, sea = {0.02, 0.06, 0.03}, gold = {1.00, 0.88, 0.30}}},
+  {id = "amogus", name = "AMOGUS", desc = "One of your drones is sus. Emergency meeting!", sounds = "meme", memeFX = "amogus", c = {
+    bg = {0.02, 0.03, 0.07}, panel = {0.06, 0.07, 0.13}, line = {0.30, 0.95, 0.95}, white = {1, 1, 1},
+    dim = {0.55, 0.60, 0.75}, faint = {0.18, 0.20, 0.30}, red = {0.95, 0.15, 0.15}, orange = {1.00, 0.90, 0.20},
+    teal = {0.15, 0.30, 0.40}, sea = {0.03, 0.05, 0.10}, gold = {1.00, 0.85, 0.30}}},
+  {id = "thisisfine", name = "THIS IS FINE", desc = "The room is on fire. The coffee is still warm.", sounds = "meme", memeFX = "fine", c = {
+    bg = {0.12, 0.05, 0.02}, panel = {0.20, 0.10, 0.04}, line = {1.00, 0.70, 0.30}, white = {1.00, 0.95, 0.85},
+    dim = {0.80, 0.55, 0.35}, faint = {0.35, 0.18, 0.08}, red = {1.00, 0.30, 0.10}, orange = {1.00, 0.60, 0.10},
+    teal = {0.40, 0.20, 0.08}, sea = {0.15, 0.06, 0.02}, gold = {1.00, 0.85, 0.40}}},
+  {id = "gigachad", name = "AVERAGE TOWER ENJOYER", desc = "Yes. Chiselled HUD. No hesitation.", sounds = "meme", c = {
+    bg = {0.02, 0.02, 0.02}, panel = {0.08, 0.08, 0.08}, line = {0.92, 0.92, 0.92}, white = {1, 1, 1},
+    dim = {0.60, 0.60, 0.60}, faint = {0.22, 0.22, 0.22}, red = {0.85, 0.85, 0.85}, orange = {1, 1, 1},
+    teal = {0.25, 0.25, 0.25}, sea = {0.05, 0.05, 0.05}, gold = {0.95, 0.95, 0.95}}},
   ---------------------------------------------------------------- social media (rounded web app style)
   {id = "youtube", name = "YOUTUBE", desc = "Smash that like button. Hit the bell. Harvest.", style = "web", font = "arial.ttf",
     round = 10, shadow = true, titleCase = true, c = {
@@ -430,6 +455,8 @@ function T.apply(id)
   T.current = t
   -- desktop-app themes: drawing style, system font, optional see-through window
   H.style = t.style
+  require("game.memes").fx = t.memeFX
+  require("game.fx").soundPack = t.cursed and "stupid" or nil
   V.setFace(t.font)
   V.round, V.shadow = t.round or 0, t.shadow == true
   V.caseFn = t.titleCase and titleCase or nil
