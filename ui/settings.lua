@@ -171,7 +171,7 @@ local function rows(section)
         slider(xr, y, 260, v.flash, 0, 1.5, flashLbl(v.flash), function(x) v.flash = x; Set.save(); Su.onChange("flash") end, cl) end},
       {"CONFETTI LEVEL", "Particle amount. PARTY may summon your GPU fan.", function(xr, y, cl)
         seg(xr, y, {{0.35, "MINIMAL"}, {1, "NORMAL"}, {2, "PARTY"}}, v.confetti, function(x) set("confetti", x) end, cl) end},
-      {"REDUCED MOTION", "No light rays, no screen shake, softer flashes.", function(xr, y, cl)
+      {"REDUCED MOTION", "No light rays, shake, UI animation or background drift. Softer flashes.", function(xr, y, cl)
         toggle(xr, y, v.reducedMotion, function() set("reducedMotion", not v.reducedMotion) end, cl) end},
       {"TOOLTIPS", "Show info boxes when hovering over things.", function(xr, y, cl)
         toggle(xr, y, v.tooltips, function() set("tooltips", not v.tooltips) end, cl) end},

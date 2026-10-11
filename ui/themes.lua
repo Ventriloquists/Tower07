@@ -30,7 +30,12 @@ end
 local T = {}
 
 T.LIST = {
-  {id = "oblivion", name = "OBLIVION", desc = "The default tower HUD.", c = {
+  -- house style: graphite surfaces, ice-white interface light, one warm signal accent
+  {id = "command", name = "COMMAND", desc = "Tower 07 house style. Graphite, ice light, signal amber.", c = {
+    bg = {0.030, 0.034, 0.040}, panel = {0.060, 0.067, 0.078}, line = {0.70, 0.84, 0.90}, white = {0.94, 0.95, 0.94},
+    dim = {0.47, 0.53, 0.57}, faint = {0.17, 0.20, 0.23}, red = {0.98, 0.29, 0.25}, orange = {1.00, 0.60, 0.22},
+    teal = {0.22, 0.38, 0.45}, sea = {0.040, 0.055, 0.068}, gold = {0.98, 0.81, 0.42}}},
+  {id = "oblivion", name = "OBLIVION", desc = "The original tower HUD. Cyan on midnight.", c = {
     bg = {0.024, 0.036, 0.048}, panel = {0.035, 0.058, 0.075}, line = {0.55, 0.86, 0.96}, white = {0.90, 0.97, 1.00},
     dim = {0.36, 0.52, 0.60}, faint = {0.16, 0.27, 0.32}, red = {1.00, 0.27, 0.22}, orange = {1.00, 0.58, 0.20},
     teal = {0.13, 0.42, 0.52}, sea = {0.03, 0.075, 0.095}, gold = {1.00, 0.84, 0.36}}},
@@ -461,6 +466,7 @@ function T.apply(id)
   require("game.fx").soundPack = t.cursed and "stupid" or nil
   V.setFace(t.font)
   V.round, V.shadow = t.round or 0, t.shadow == true
+  V.chamfer = t.style and 0 or H.CUT -- the HUD silhouette belongs to the HUD themes only
   V.liquid = t.liquid
   H.wallpaper = t.wallpaper
   H.macDark = t.liquid and t.liquid.dark or false

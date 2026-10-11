@@ -18,7 +18,7 @@ local function rig(i, x, y, w, h)
   if not r.on then
     H.hatch(x, y, w, h, C.red, 0.12, 9)
     H.brackets(x, y, w, h, 12, C.red, 0.7)
-    lg.setFont(Fo.xl); col(C.red); lg.print("R" .. i, x + 20, y + 16)
+    lg.setFont(Fo.dxl); col(C.red); lg.print("R" .. i, x + 20, y + 16)
     lg.setFont(Fo.m); col(C.red); lg.print("RIG OFFLINE // DAMAGED", x + 20, y + 60)
     H.label("Restore it to open a new hydro stream.", x + 20, y + 86, C.dim)
     local cost = D.RIG_UNLOCK[i]
@@ -33,10 +33,10 @@ local function rig(i, x, y, w, h)
   H.brackets(x, y, w, h, 12, rc)
   if full then col(C.orange, 0.05 + 0.04 * math.sin(G.time * 5)); lg.rectangle("fill", x, y, w, h) end
   -- header
-  lg.setFont(Fo.xl); col(C.white); lg.print("R" .. i, x + 20, y + 12)
+  lg.setFont(Fo.dxl); col(C.white); lg.print("R" .. i, x + 20, y + 12)
   H.label("LEVEL", x + 74, y + 14, C.dim)
   lg.setFont(Fo.l); col(C.line); lg.print(tostring(r.lvl), x + 74, y + 26)
-  lg.setFont(Fo.xl); col(full and C.orange or C.white); lg.printf(fmt(math.floor(r.tank)), x, y + 12, w - 20, "right")
+  lg.setFont(Fo.dxl); col(full and C.orange or C.white); lg.printf(fmt(math.floor(r.tank)), x, y + 12, w - 20, "right")
   H.label("/ " .. fmt(math.floor(cap)) .. " H2O", x + w - 120, y + 46, C.dim)
   col(C.line, 0.3); lg.line(x + 16, y + 66, x + w - 16, y + 66)
   -- glyph + gauges
@@ -91,7 +91,7 @@ end
 function Sc.draw()
   local S = G.S
   local Fo = H.fonts
-  lg.setFont(Fo.l); col(C.white); lg.print("HYDRO EXTRACTION", 24, 62)
+  lg.setFont(Fo.d2); col(C.white); lg.print("HYDRO EXTRACTION", 24, 58)
   local flow, any = 0, false
   for i, r in ipairs(S.rigs) do
     if r.on then

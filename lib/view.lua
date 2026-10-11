@@ -4,7 +4,7 @@
 local V = {VW = 1280, VH = 720, s = 1, ox = 0, oy = 0, lw = 1, winW = 1280, winH = 720}
 local G = love.graphics
 
-local fontData
+local fontData, displayData
 local registry = {}
 local Font = {}
 Font.__index = Font
@@ -17,8 +17,10 @@ function Font:getHeight() return self.f:getHeight() / V.s end
 
 local function build(fw)
   local px = math.max(6, math.floor(fw.size * V.s + 0.5))
-  if fontData then
-    local ok, f = pcall(G.newFont, fontData, px)
+  -- display fonts use the heading face, but only with the default face (app themes keep their system font)
+  local data = (fw.display and V.face == "default" and displayData) or fontData
+  if data then
+    local ok, f = pcall(G.newFont, data, px)
     if ok then fw.f = f return end
   end
   fw.f = G.newFont(px)
@@ -39,8 +41,10 @@ local function loadFace(list)
     if ok and data then faceCache[name] = data return data end
   end
 end
+-- type system: Bahnschrift (DIN) for the interface, Franklin Gothic for display headings and hero numbers
 function V.loadFontData()
   fontData = loadFace({"bahnschrift.ttf", "segoeui.ttf"})
+  displayData = loadFace({"framd.ttf", "bahnschrift.ttf", "segoeui.ttf"})
   V.face = "default"
 end
 -- switch the UI typeface (themes that mimic a desktop app use the system UI font); rebuilds every font
@@ -52,8 +56,8 @@ function V.setFace(name)
   for _, fw in ipairs(registry) do build(fw) end
 end
 
-function V.newFont(size)
-  local fw = setmetatable({size = size}, Font)
+function V.newFont(size, display)
+  local fw = setmetatable({size = size, display = display}, Font)
   build(fw)
   registry[#registry + 1] = fw
   return fw
@@ -149,7 +153,23 @@ function V.glassRect(x, y, w, h, r, cr, cg, cb)
   G.setColor(0, 0, 0, L.dark and 0.35 or 0.06); G.rectangle("line", x - 0.5, y - 0.5, w + 1, h + 1, r + 0.5, r + 0.5)
   G.setLineWidth(lw)
 end
+-- V.chamfer: the HUD silhouette. Panels lose their top-left and bottom-right corners (cut at 45 degrees).
+-- Only panel-sized rectangles are cut: bars, tiles, chips and full-screen dims stay square.
+V.chamfer = 0
+function V.cutFor(w, h)
+  local c = V.chamfer
+  if c <= 0 or w < 40 or h < 24 or w > 1000 then return 0 end
+  return math.min(c, h * 0.3, w * 0.3)
+end
+function V.chamferPoly(mode, x, y, w, h, c1, c2)
+  c2 = c2 or c1
+  G.polygon(mode, x + c1, y, x + w, y, x + w, y + h - c2, x + w - c2, y + h, x, y + h, x, y + c1)
+end
 function lg.rectangle(mode, x, y, w, h, rx, ry, seg)
+  if not rx and V.chamfer > 0 then
+    local c = V.cutFor(w, h)
+    if c > 0 then return V.chamferPoly(mode, x, y, w, h, c) end
+  end
   if V.round > 0 and not rx and w >= 40 and h >= 24 then
     local r = math.min(V.round, h / 2, w / 2)
     if V.liquid and mode == "fill" and w >= 60 and h >= 30 then

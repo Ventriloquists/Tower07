@@ -88,13 +88,10 @@ function Va.tabs()
   local Fo = H.fonts
   local n = G.forgeReady()
   local tabs = {{"inventory", "INVENTORY"}, {"forge", n > 0 and ("FORGE // " .. n .. " READY") or "FORGE"}}
-  for k, t in ipairs(tabs) do
-    local x, w = X0 + W - 340 + (k - 1) * 166, 160
-    local on = G.vaultMode == t[1]
-    local c = (t[1] == "forge" and n > 0) and C.gold or C.line
-    H.button(x, Y0 + 8, w, 24, t[2], true, function() G.vaultMode = t[1]; FX.play("tick", 1.2) end,
-      on and C.white or c, Fo.xs, nil, on)
-  end
+  local labels, sel = {}, 1
+  for k, t in ipairs(tabs) do labels[k] = t[2]; if G.vaultMode == t[1] then sel = k end end
+  H.segmented(X0 + W - 340, Y0 + 8, 326, 24, labels, sel, function(k) G.vaultMode = tabs[k][1]; FX.play("tick", 1.2) end,
+    "vaulttabs", n > 0 and C.gold or C.line)
 end
 
 local function modChip(t, r, x, y, w, h)

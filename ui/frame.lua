@@ -96,16 +96,63 @@ function F.background()
   if H.wallpaper then return wallpaper(H.wallpaper) end
   if H.style then return end -- desktop-app themes: clean background
   local x0, y0, x1, y1 = V.extents()
-  col(C.faint, 0.16)
-  for x = math.floor(x0 / 40) * 40, x1, 40 do lg.line(x, y0, x, y1) end
-  for y = math.floor(y0 / 40) * 40, y1, 40 do lg.line(x0, y, x1, y) end
-  col(C.dim, 0.22)
-  for x = math.floor(x0 / 160) * 160, x1, 160 do
-    for y = math.floor(y0 / 160) * 160, y1, 160 do
-      lg.line(x - 4, y, x + 4, y)
-      lg.line(x, y - 4, x, y + 4)
+  -- key light from above the tower, a warm rim from the lower right: the HUD floats in a lit room
+  local glow = F.glowMesh()
+  local t = love.timer.getTime()
+  col(C.line, 0.075); love.graphics.draw(glow, 640, -120, 0, 980, 620)
+  col(C.orange, 0.035); love.graphics.draw(glow, 1180, 760, 0, 720, 460)
+  -- survey grid with slight parallax toward the cursor
+  local mx, my = V.mouse()
+  local px = H.reduced and 0 or (mx - 640) / 640 * -6
+  local py = H.reduced and 0 or (my - 360) / 360 * -4
+  -- the grid is texture, not content: barely there, with registration crosses only on the major lines
+  col(C.faint, 0.07)
+  for x = math.floor(x0 / 40) * 40, x1 + 40, 40 do lg.line(x + px, y0, x + px, y1) end
+  for y = math.floor(y0 / 40) * 40, y1 + 40, 40 do lg.line(x0, y + py, x1, y + py) end
+  col(C.dim, 0.16)
+  for x = math.floor(x0 / 160) * 160, x1 + 160, 160 do
+    for y = math.floor(y0 / 160) * 160, y1 + 160, 160 do
+      lg.line(x + px - 3, y + py, x + px + 3, y + py)
+      lg.line(x + px, y + py - 3, x + px, y + py + 3)
     end
   end
+  -- film grain keeps the large dark areas from looking flat
+  local img, q = F.grain(x1 - x0, y1 - y0)
+  local gx, gy = 0, 0
+  if not H.reduced then gx, gy = math.floor(love.math.random() * 128), math.floor(love.math.random() * 128) end
+  love.graphics.setColor(1, 1, 1, 0.028)
+  q:setViewport(gx, gy, x1 - x0, y1 - y0, 128, 128)
+  love.graphics.draw(img, q, x0, y0)
+end
+
+-- radial falloff (white centre -> transparent edge), tinted with setColor and scaled to any ellipse
+local glowMesh
+function F.glowMesh()
+  if glowMesh then return glowMesh end
+  local v = {{0, 0, 0.5, 0.5, 1, 1, 1, 1}}
+  for i = 0, 48 do
+    local a = i / 48 * TAU
+    v[#v + 1] = {math.cos(a), math.sin(a), 0, 0, 1, 1, 1, 0}
+  end
+  glowMesh = love.graphics.newMesh(v, "fan", "static")
+  return glowMesh
+end
+
+local grainImg, grainQuad
+function F.grain(w, h)
+  if not grainImg then
+    local d = love.image.newImageData(128, 128)
+    for y = 0, 127 do
+      for x = 0, 127 do
+        local v = love.math.random()
+        d:setPixel(x, y, v, v, v, 1)
+      end
+    end
+    grainImg = love.graphics.newImage(d)
+    grainImg:setWrap("repeat", "repeat")
+    grainQuad = love.graphics.newQuad(0, 0, w, h, 128, 128)
+  end
+  return grainImg, grainQuad
 end
 
 function F.signal()
@@ -161,6 +208,31 @@ end
 ----------------------------------------------------------------------
 local function pill(x, y, w, h, icon, label, value, c, sub, tipTitle, tipText)
   local hov = H.mouseIn(x, y, w, h)
+  if H.isHud() then
+    -- resource readout: icon tile, small caps label, big value; a lit underline grows on hover
+    -- the primary currency sits on a plate; the others are bare readouts divided by hairlines (plate on hover)
+    local t = H.hoverT(x, y, w, h, hov)
+    local hero = label == "ENERGY"
+    if hero then
+      col(C.panel, 0.85); lg.rectangle("fill", x, y, w, h)
+      col(c, 0.05); lg.rectangle("fill", x, y, w, h)
+      col(C.faint, 0.9); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    else
+      col(C.panel, 0.7 * t); lg.rectangle("fill", x, y, w, h)
+      col(C.faint, 0.9); lg.line(x + w + 4, y + 6, x + w + 4, y + h - 6)
+    end
+    col(c, 0.12 + 0.1 * t); H.chamfer("fill", x + 4, y + 4, 24, h - 8, 5)
+    I.draw(icon, x + 16, y + h / 2, 7, c)
+    col(c, (hero and 0.7 or 0) + 0.3 * t); lg.rectangle("fill", x + 4, y + h - 2, 24 + (w - 28) * (hero and math.max(0.25, t) or t), 2)
+    H.label(label, x + 36, y + 4, C.dim)
+    lg.setFont(H.fonts.m); col(C.white); lg.print(value, x + 36, y + 15)
+    if sub then
+      lg.setFont(H.fonts.xs); col(c)
+      lg.printf(sub, x, y + 19, w - 8, "right")
+    end
+    if hov and tipTitle then H.setTip(tipTitle, tipText) end
+    return
+  end
   col(C.panel, 0.95); lg.rectangle("fill", x, y, w, h)
   col(c, hov and 0.5 or 0.25); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
   col(c, 0.12); lg.rectangle("fill", x, y, 30, h)
@@ -181,6 +253,10 @@ function F.topBar()
   if H.wallpaper then
     -- floating glass toolbar
     V.glassRect(x0 + 4, 3, x1 - x0 - 8, F.TOP - 6, (F.TOP - 6) / 2, C.panel[1], C.panel[2], C.panel[3])
+  elseif H.isHud() then
+    col(C.bg, 0.94); lg.rectangle("fill", x0, 0, x1 - x0, F.TOP)
+    col(C.faint, 1); lg.line(x0, F.TOP, x1, F.TOP)
+    col(C.line, 0.6); lg.line(x0, F.TOP, 260, F.TOP) -- the profile corner carries the accent
   else
     col(C.bg, 0.97); lg.rectangle("fill", x0, 0, x1 - x0, F.TOP)
     col(C.line, 0.45); lg.line(x0, F.TOP, x1, F.TOP)
@@ -284,6 +360,16 @@ function F.topBar()
   -- settings
   local function iconBtn(bx2, icon, on, title, text, fn)
     local hov = H.mouseIn(bx2, 8, 40, 36)
+    if H.isHud() then
+      local t = H.hoverT(bx2, 8, 40, 36, hov)
+      col(C.panel, 0.7); lg.rectangle("fill", bx2, 8, 40, 36)
+      col(C.line, 0.04 + 0.12 * t); lg.rectangle("fill", bx2, 8, 40, 36)
+      col(C.faint, 0.8); lg.rectangle("line", bx2 + 0.5, 8.5, 39, 35)
+      I.draw(icon, bx2 + 20, 26, 8, hov and C.white or (on and C.line or C.red))
+      if hov then H.setTip(title, text) end
+      H.addHit(bx2, 8, 40, 36, fn)
+      return
+    end
     col(C.line, hov and 0.2 or 0.05); lg.rectangle("fill", bx2, 8, 40, 36)
     H.brackets(bx2, 8, 40, 36, 5, hov and C.white or (on and C.line or C.dim))
     I.draw(icon, bx2 + 20, 26, 8, hov and C.white or (on and C.line or C.red))
@@ -354,8 +440,68 @@ function F.macDock()
   end
 end
 
+-- HUD dock: one row of screens; a lit indicator glides to the active one and a light column rises from it
+local function hudDock()
+  local Fo = H.fonts
+  local x0, _, x1, y1 = V.extents()
+  local y = F.DOCK
+  col(C.bg, 0.96); lg.rectangle("fill", x0, y, x1 - x0, y1 - y)
+  col(C.faint, 1); lg.line(x0, y, x1, y)
+  local badges = F.badges()
+  local w = 1280 / #F.SCENES
+  local _, active = F.scene(G.tab)
+  active = active or 1
+  -- indicator glides between tabs (position and a slight stretch while moving)
+  local ix = H.tween("dockInd", (active - 1) * w, H.MO.base)
+  local stretch = math.min(40, math.abs((active - 1) * w - ix) * 0.25)
+  local glow = F.glowMesh()
+  col(C.line, 0.13); love.graphics.draw(glow, ix + w / 2, y, 0, w * 0.55, 46)
+  col(C.line, 0.07); lg.rectangle("fill", ix + 2, y + 1, w - 4, 63)
+  col(C.white); lg.rectangle("fill", ix + 18 - stretch / 2, y, w - 36 + stretch, 2)
+  for k, s in ipairs(F.SCENES) do
+    local key = s[1]
+    local x = (k - 1) * w
+    local on = G.tab == key
+    local open, need = G.unlocked(key)
+    local hov = H.mouseIn(x, y, w, 64)
+    local t = H.hoverT(x, y, w, 64, hov or on)
+    if hov and not on then col(C.line, 0.04); lg.rectangle("fill", x + 2, y + 1, w - 4, 63) end
+    if k > 1 then col(C.faint, 0.6); lg.line(x, y + 16, x, y + 48) end
+    local cx = x + w / 2
+    local r, g, b = H.lerpC(C.dim, on and C.white or C.line, t)
+    local ic = not open and C.red or {r, g, b}
+    local lift = open and 2 * t or 0
+    I.draw(open and s[3] or "lock", cx, y + 23 - lift, 10, ic, open and 1 or 0.6)
+    lg.setFont(Fo.s); col(ic, open and 1 or 0.7)
+    lg.printf(open and s[2] or (need .. " LOGS"), x, y + 39 - lift * 0.5, w, "center")
+    -- the number key hint appears only where the eye already is (active or hovered tab)
+    if t > 0.02 then lg.setFont(Fo.xs); col(C.dim, t); lg.print(tostring(k), x + 10, y + 7) end
+    if open and key == "map" and G.boss and G.boss() then
+      local p = 0.5 + 0.5 * math.sin(G.time * 6)
+      col(C.red, 0.08 + 0.12 * p); lg.rectangle("fill", x + 2, y + 1, w - 4, 63)
+      H.brackets(x + 4, y + 3, w - 8, 59, 6, C.red, 0.5 + 0.5 * p)
+      lg.setFont(Fo.xs); col(C.red); lg.printf("MOTHERSHIP", x, y + 53, w, "center")
+    end
+    if open and badges[key] then
+      local n, bc = badges[key][1], badges[key][2]
+      if n > 0 then H.badge(cx + 18, y + 12, n, bc) end
+    end
+    if hov then H.setTip(s[2], open and s[4] or ("Unlocks at " .. need .. " log entries")) end
+    H.addHit(x, y, w, 64, function()
+      if not open then
+        FX.toast(s[2] .. " // LOCKED", "Collect " .. need .. " log entries to unlock (" .. G.achCount .. "/" .. need .. ").", C.red)
+        FX.play("err")
+        return
+      end
+      G.tab = key
+      FX.play("tap", 1.6, 0.4)
+    end)
+  end
+end
+
 function F.dock()
   if H.style == "mac" then return F.macDock() end
+  if H.isHud() then return hudDock() end
   local Fo = H.fonts
   local x0, _, x1, y1 = V.extents()
   local y = F.DOCK
@@ -417,7 +563,9 @@ function F.toasts()
   col(C.bg, 0.97); lg.rectangle("fill", x0, y, x1 - x0, h)
   col(C.line, 0.25); lg.line(x0, y, x1, y)
   col(C.line, 0.15); lg.rectangle("fill", 0, y, 64, h)
-  lg.setFont(Fo.xs); col(C.line); lg.print("COMMS", 12, y + 4)
+  lg.setFont(Fo.xs); col(C.line); lg.print("COMMS", 18, y + 4)
+  -- live channel dot
+  col(C.line, H.reduced and 1 or (0.4 + 0.6 * math.abs(math.sin(love.timer.getTime() * 2)))); lg.rectangle("fill", 8, y + 8, 4, 4)
   local x = 76
   lg.setFont(Fo.xs)
   local list = {}
@@ -445,6 +593,31 @@ function F.banner()
   local a = math.min(1, b.t * 5, (3 - b.t) * 2)
   local c = b.c or C.white
   local x0, _, x1 = V.extents()
+  if H.isHud() then
+    -- cinematic letterbox: the band opens from the centre line, the title settles in, then it all closes
+    local open = H.ease.outCubic(math.min(1, b.t * 4)) * math.min(1, (3 - b.t) * 3)
+    local cy, full = 256, 96
+    local h = full * open
+    local y = cy - h / 2
+    col(C.bg, 0.9 * a); lg.rectangle("fill", x0, y, x1 - x0, h)
+    local glow = F.glowMesh()
+    col(c, 0.12 * a); love.graphics.draw(glow, 640, cy, 0, 700, h * 0.6)
+    local lw = (x1 - x0) * H.ease.outExpo(math.min(1, b.t * 2.5))
+    col(c, a); lg.rectangle("fill", 640 - lw / 2, y, lw, 1); lg.rectangle("fill", 640 - lw / 2, y + h - 1, lw, 1)
+    if open > 0.6 then
+      lg.push("all")
+      lg.intersectScissor(x0, y, x1 - x0, h)
+      local settle = (1 - H.ease.outCubic(math.min(1, b.t * 3))) * 60
+      local title = b.rank and ("RANK " .. b.rank .. "  //  " .. G.rankTitle(b.rank)) or b.title
+      lg.setFont(H.fonts.xs); col(c, a)
+      lg.printf(b.rank and "PROMOTION" or "PRIORITY SIGNAL", 0, cy - 40, 1280, "center")
+      lg.setFont(H.fonts.d1); col(C.white, a)
+      lg.printf(title, settle, cy - 26, 1280, "center")
+      H.richf(b.text or "", -settle, cy + 16, 1280, "center", C.dim, a, H.fonts.s)
+      lg.pop()
+    end
+    return
+  end
   local y, h = 214, 84
   local slide = (1 - math.min(1, b.t * 4)) * 200
   col(C.bg, 0.88 * a); lg.rectangle("fill", x0, y, x1 - x0, h)

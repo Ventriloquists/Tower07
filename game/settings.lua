@@ -13,7 +13,7 @@ Set.defaults = {
   -- wellbeing
   grass = 45, nap = 5, eco = true, bossKey = true, disguise = "sheet",
   -- theme
-  theme = "oblivion",
+  theme = "command", designV = 0,
 }
 
 local function copy(t)

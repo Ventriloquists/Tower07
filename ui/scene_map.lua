@@ -808,16 +808,13 @@ local function rightColumn()
   local tabs = {{"log", "SALVAGE LOG"}, {"weather", "WEATHER"}, {"tet", "TET UPLINK"}}
   local tw = RW / #tabs
   G.mapPanel = G.mapPanel or "log"
+  local labels, sel = {}, 1
+  for k, t in ipairs(tabs) do labels[k] = t[2]; if G.mapPanel == t[1] then sel = k end end
+  H.segmented(RX, y, RW, 22, labels, sel, function(k) G.mapPanel = tabs[k][1]; FX.play("tick", 1.2) end, "mappanel")
   for k, t in ipairs(tabs) do
     local tx = RX + (k - 1) * tw
-    local on = G.mapPanel == t[1]
-    local hov = H.mouseIn(tx, y, tw - 4, 22)
     local alert = (t[1] == "tet" and G.tetReady()) or (t[1] == "weather" and G.weather.def.id ~= "CLEAR")
-    col(C.line, on and 0.25 or (hov and 0.1 or 0.03)); lg.rectangle("fill", tx, y, tw - 4, 22)
-    if on then col(C.white); lg.rectangle("fill", tx, y + 20, tw - 4, 2) end
-    lg.setFont(F.xs); col(on and C.white or C.dim); lg.printf(t[2], tx, y + 5, tw - 4, "center")
     if alert and math.floor(G.time * 3) % 2 == 0 then col(t[1] == "tet" and C.white or C.orange); lg.rectangle("fill", tx + tw - 12, y + 2, 5, 5) end
-    H.addHit(tx, y, tw - 4, 22, function() G.mapPanel = t[1]; FX.play("tick", 1.2) end)
   end
   local py, ph = y + 26, 164
   H.brackets(RX, py, RW, ph, 6, C.line, 0.6)

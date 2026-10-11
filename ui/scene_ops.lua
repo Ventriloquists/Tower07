@@ -71,13 +71,13 @@ local function events()
     local ec = C[ev.def.col]
     H.card(x, y, w, h, "EVENT ACTIVE", ec, H.fmtTime(ev.t) .. " LEFT")
     H.hatch(x, y + 26, w, 90, ec, 0.1, 7)
-    lg.setFont(Fo.xl); col(ec); lg.printf(ev.def.name, x, y + 40, w, "center")
+    lg.setFont(Fo.dxl); col(ec); lg.printf(ev.def.name, x, y + 40, w, "center")
     H.richf(ev.def.desc, x, y + 82, w, "center", C.white, 1, Fo.s)
     H.bar(x + 40, y + 108, w - 80, 4, ev.t / ev.dur, ec)
   elseif G.nextEvent then
     local ne = G.nextEvent
     H.card(x, y, w, h, "NEXT EVENT", C.dim, "IN " .. H.fmtTime(ne.t))
-    lg.setFont(Fo.xl); col(C[ne.def.col], 0.85); lg.printf(ne.def.name, x, y + 40, w, "center")
+    lg.setFont(Fo.dxl); col(C[ne.def.col], 0.85); lg.printf(ne.def.name, x, y + 40, w, "center")
     H.richf(ne.def.desc, x, y + 82, w, "center", C.dim, 1, Fo.s)
     lg.setFont(Fo.l); col(C.white); lg.printf(H.clock(ne.t), x, y + 102, w, "center")
   end
@@ -153,7 +153,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.l); col(C.white); lg.print("OPERATIONS", 24, 58)
+  lg.setFont(Fo.d2); col(C.white); lg.print("OPERATIONS", 24, 54)
   directives()
   daily()
   events()

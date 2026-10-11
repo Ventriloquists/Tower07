@@ -41,22 +41,32 @@ end
 ----------------------------------------------------------------------
 local function hero()
   local Fo = H.fonts
+  -- hero readout: kicker label, the big number in the display face, the rate underneath
+  local hud = H.isHud()
+  if hud then
+    lg.setFont(Fo.xs); col(C.dim); lg.printf("STORED ENERGY", 340, 58, 600, "center")
+  end
   lg.setFont(Fo.huge); col(C.white)
-  lg.printf(fmt(G.dispDust), 340, 58, 600, "center")
+  lg.printf(fmt(G.dispDust), 340, hud and 66 or 58, 600, "center")
   local boosted = G.buffMult("prod") > 1
   lg.setFont(Fo.m); col(boosted and C.orange or C.line)
-  lg.printf("+" .. fmt(G.getCps()) .. " ENERGY / SEC", 340, 114, 600, "center")
+  lg.printf("+" .. fmt(G.getCps()) .. " ENERGY / SEC", 340, hud and 128 or 114, 600, "center")
   -- reactor saturation warning: output is being throttled until you reboot
   local sat = G.satMult()
+  local sy = hud and 150 or 134
   if sat < 0.999 then
     local txt = string.format("REACTOR SATURATION  x%s OUTPUT  //  REBOOT TO RESET", sat >= 0.01 and string.format("%.2f", sat) or H.fmt(sat))
     local pulse = 0.6 + 0.4 * math.sin(G.time * 4)
     local tw = Fo.xs:getWidth(txt) + 24
-    local hov = H.mouseIn(640 - tw / 2, 134, tw, 18)
-    col(C.red, (hov and 0.35 or 0.18) * pulse + 0.05); lg.rectangle("fill", 640 - tw / 2, 134, tw, 18)
-    lg.setFont(Fo.xs); col(C.red); lg.printf(txt, 640 - tw / 2, 137, tw, "center")
+    local hov = H.mouseIn(640 - tw / 2, sy, tw, 18)
+    col(C.red, (hov and 0.35 or 0.18) * pulse + 0.05); lg.rectangle("fill", 640 - tw / 2, sy, tw, 18)
+    if hud then col(C.red); lg.rectangle("fill", 640 - tw / 2, sy, 3, 18) end
+    lg.setFont(Fo.xs); col(C.red); lg.printf(txt, 640 - tw / 2, sy + 3, tw, "center")
     if hov then H.setTip("REACTOR SATURATION", "This run has outgrown the reactor: a reboot now would more than triple your Core Data, so every further unit pays off less and less. Rebooting resets the saturation and raises the limit.") end
-    H.addHit(640 - tw / 2, 134, tw, 18, function() if G.unlocked("nova") then G.tab = "nova"; FX.play("tap", 1.6, 0.4) end end)
+    H.addHit(640 - tw / 2, sy, tw, 18, function() if G.unlocked("nova") then G.tab = "nova"; FX.play("tap", 1.6, 0.4) end end)
+    sy = sy + 24
+  else
+    sy = sy + 4
   end
   -- buff chips
   local n = #G.buffs
@@ -65,11 +75,12 @@ local function hero()
   for _, b in ipairs(G.buffs) do
     local bc = b.kind == "click" and C.red or C.orange
     if b.name == "GOLDEN HOUR" then bc = C.gold end
-    col(bc, 0.15); lg.rectangle("fill", x, 138, cw, 26)
-    H.brackets(x, 138, cw, 26, 5, bc)
-    lg.setFont(Fo.xs); col(bc); lg.print(H.fit(Fo.xs, b.name, 90), x + 8, 141)
-    col(C.white); lg.printf("x" .. b.mult .. " " .. math.ceil(b.t) .. "s", x, 141, cw - 8, "right")
-    H.bar(x + 8, 157, cw - 16, 2, b.t / b.dur, bc)
+    col(C.panel, 0.9); lg.rectangle("fill", x, sy, cw, 26)
+    col(bc, 0.15); lg.rectangle("fill", x, sy, cw, 26)
+    H.brackets(x, sy, cw, 26, 5, bc)
+    lg.setFont(Fo.xs); col(bc); lg.print(H.fit(Fo.xs, b.name, 90), x + 8, sy + 3)
+    col(C.white); lg.printf("x" .. b.mult .. " " .. math.ceil(b.t) .. "s", x, sy + 3, cw - 8, "right")
+    H.bar(x + 8, sy + 19, cw - 16, 2, b.t / b.dur, bc)
     x = x + cw + 8
   end
 end
@@ -78,22 +89,36 @@ end
 local function objectives()
   local Fo = H.fonts
   local x, w = 24, 300
-  H.label("OBJECTIVES", x, 62, C.white)
-  col(C.line, 0.3); lg.line(x, 78, x + w, 78)
+  local nGoals = #G.goals()
+  H.heading("OBJECTIVES", x, 60, w, C.line, nil, H.isHud() and (nGoals > 6 and ("6 OF " .. nGoals) or (nGoals .. " ACTIVE")) or nil)
   local goals = G.goals()
+  -- one call to action at a time: only the first ready objective gets a filled button
+  local firstReady
+  for k = 1, math.min(6, #goals) do if goals[k].ready and goals[k].label then firstReady = k break end end
   local y = 86
   for k = 1, math.min(6, #goals) do
     local g = goals[k]
     local h = 66
     local gc = g.c or C.line
     local hov = H.mouseIn(x, y, w, h)
-    col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
-    if g.ready then
-      col(gc, 0.1 + 0.06 * math.sin(G.time * 4 + k)); lg.rectangle("fill", x, y, w, h)
+    if H.isHud() then
+      -- objective row: neutral plate, a lit spine and icon bay in the objective's colour; ready rows breathe
+      local t = H.hoverT(x, y, w, h, hov)
+      col(C.panel, 0.94); lg.rectangle("fill", x, y, w, h)
+      if g.ready then col(gc, k == firstReady and 0.1 or 0.05); lg.rectangle("fill", x, y, w, h) end
+      col(C.line, 0.05 * t); lg.rectangle("fill", x, y, w, h)
+      col(gc, g.ready and (0.55 + 0.35 * t) or (0.22 + 0.3 * t)); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+      col(gc, g.ready and 0.16 or 0.08); lg.polygon("fill", x + H.CUT, y, x + 40, y, x + 40, y + h, x, y + h, x, y + H.CUT)
+      col(gc, g.ready and 1 or 0.6); lg.rectangle("fill", x + 40, y + 10, 1, h - 20)
+    else
+      col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
+      if g.ready then
+        col(gc, 0.1 + 0.06 * math.sin(G.time * 4 + k)); lg.rectangle("fill", x, y, w, h)
+      end
+      if hov then col(C.line, 0.06); lg.rectangle("fill", x, y, w, h) end
+      col(gc, g.ready and 0.9 or 0.35); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+      col(gc, 0.15); lg.rectangle("fill", x, y, 40, h)
     end
-    if hov then col(C.line, 0.06); lg.rectangle("fill", x, y, w, h) end
-    col(gc, g.ready and 0.9 or 0.35); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
-    col(gc, 0.15); lg.rectangle("fill", x, y, 40, h)
     I.draw(g.icon, x + 20, y + h / 2, 9, gc)
     local tw = g.ready and (w - 140) or (w - 54)
     H.rich(H.fit(Fo.s, g.title, tw), x + 50, y + 9, g.ready and gc or C.white, 1, Fo.s)
@@ -103,7 +128,7 @@ local function objectives()
       lg.setFont(Fo.xs); col(C.dim); lg.printf(math.floor(clamp(g.prog, 0, 1) * 100) .. "%", x, y + 34, w - 12, "right")
     end
     if g.ready and g.label then
-      H.button(x + w - 84, y + 18, 74, 30, g.label, true, g.fn, gc, Fo.xs, nil, true)
+      H.button(x + w - 84, y + 18, 74, 30, g.label, true, g.fn, gc, Fo.xs, nil, k == firstReady or not H.isHud())
     elseif g.fn then
       H.addHit(x, y, w, h, g.fn)
     end
@@ -116,8 +141,7 @@ local function status()
   local S = G.S
   local Fo = H.fonts
   local x, w = 956, 300
-  H.label("REACTOR STATUS", x, 62, C.white)
-  col(C.line, 0.3); lg.line(x, 78, x + w, 78)
+  H.heading("REACTOR STATUS", x, 60, w, C.line)
   -- surge
   local surging = G.hasBuff("CORE SURGE")
   local y = 86
@@ -205,17 +229,22 @@ local function quickBuild()
       local cost = G.genCost(i, nb)
       local can = S.stardust >= cost
       local hov = H.mouseIn(x, y, w, h)
+      local t = H.hoverT(x, y, w, h, hov)
       col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
-      if can then col(C.line, 0.07 + 0.04 * math.sin(G.time * 4 + k)); lg.rectangle("fill", x, y, w, h) end
-      if hov then col(C.white, 0.05); lg.rectangle("fill", x, y, w, h) end
-      H.brackets(x, y, w, h, 8, can and (hov and C.white or C.line) or C.faint)
+      if can then col(C.line, 0.05); lg.rectangle("fill", x, y, w, h) end
+      col(C.white, 0.05 * t); lg.rectangle("fill", x, y, w, h)
+      if H.isHud() then
+        col(can and C.line or C.faint, can and (0.3 + 0.5 * t) or 0.8); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+      else
+        H.brackets(x, y, w, h, 8, can and (hov and C.white or C.line) or C.faint)
+      end
       col(can and C.line or C.faint); lg.rectangle("line", x + 10, y + 10, 38, 38)
       lg.setFont(Fo.xs); col(can and C.white or C.dim); lg.printf(g.code, x + 10, y + 23, 38, "center")
       lg.setFont(Fo.s); col(can and C.white or C.dim); lg.print(H.fit(Fo.s, g.name:upper(), w - 66), x + 56, y + 9)
       H.label("+" .. fmt(G.genEach[i]) .. "/S EACH", x + 56, y + 29, C.dim)
       lg.setFont(Fo.l); col(C.white); lg.printf("x" .. S.gens[i], x, y + 50, w - 10, "right")
       H.label(nb > 1 and ("BUY " .. nb) or "BUY", x + 10, y + 56, C.dim)
-      lg.setFont(Fo.s); col(can and C.orange or C.red); lg.print(fmt(cost), x + 10, y + 70)
+      lg.setFont(Fo.s); col(can and C.orange or C.dim); lg.print(fmt(cost), x + 10, y + 70)
       local ms, prev = G.nextMilestone(i)
       if ms then H.bar(x + 10, y + h - 8, w - 20, 3, (S.gens[i] - prev) / (ms - prev), C.orange) end
       H.addHit(x, y, w, h, function(mx, my) G.buyGen(i, mx, my) end, nil, true)
@@ -230,16 +259,9 @@ local function quickBuild()
   end
   -- buy mode + smart buy
   local bx = 1016
-  for k, m in ipairs(G.BUYMODES) do
-    local sx = bx + (k - 1) * 61
-    local on = G.buyMode == k
-    local hov = H.mouseIn(sx, y, 57, 24)
-    col(C.line, on and 0.3 or (hov and 0.12 or 0.04)); lg.rectangle("fill", sx, y, 57, 24)
-    H.brackets(sx, y, 57, 24, 4, on and C.white or C.dim)
-    lg.setFont(Fo.xs); col(on and C.white or C.dim)
-    lg.printf(m == "MAX" and "MAX" or ("x" .. m), sx, y + 6, 57, "center")
-    H.addHit(sx, y, 57, 24, function() G.buyMode = k; FX.play("tick", 1.4) end)
-  end
+  local labels = {}
+  for k, m in ipairs(G.BUYMODES) do labels[k] = m == "MAX" and "MAX" or ("x" .. m) end
+  H.segmented(bx, y, 240, 24, labels, G.buyMode, function(k) G.buyMode = k; FX.play("tick", 1.4) end, "buymode")
   local anyCan = false
   for i = 1, #D.GENS do if G.revealedGen(i) and S.stardust >= G.genCost(i, 1) then anyCan = true break end end
   local autoOk, need = G.hasArchive("autoUnits")

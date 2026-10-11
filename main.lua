@@ -43,6 +43,7 @@ local holdHit, holdT, holdRep = nil, 0, 0
 local dragHit = nil
 local focused = true
 local frameStart = 0
+local screenTab, screenT = nil, 1 -- screen transition state
 local lazyT = 0
 local bossT = 0
 G.lastInput = 0
@@ -97,6 +98,7 @@ local function applySettings(key)
   FX.setAmbient(v.ambient)
   FX.density = v.confetti
   FX.reduced = v.reducedMotion
+  H.reduced = v.reducedMotion
   H.showTips = v.tooltips
   H.keywords = v.keywords
   G.fastReveal = v.fastReveal
@@ -147,7 +149,16 @@ function love.load(args)
   -- --sandbox: normal game, separate save folder (for testing without touching the real save)
   for _, a in ipairs(args or {}) do if a == "--sandbox" then love.filesystem.setIdentity("tower_harvest_sandbox") end end
   G.selftest = selftest
-  if not selftest then Set.load() end
+  H.snap = selftest -- deterministic screenshots: tweens land instantly
+  if not selftest then
+    Set.load()
+    -- one-time move from the old default look to the redesigned house style
+    if Set.v.designV < 1 then
+      if Set.v.theme == "oblivion" then Set.v.theme = "command" end
+      Set.v.designV = 1
+      Set.save()
+    end
+  end
   love.math.setRandomSeed(os.time())
   love.graphics.setLineStyle("smooth")
   V.loadFontData()
@@ -398,8 +409,13 @@ local function runSelftest()
   end
   if f == 32 then V.fakeMouse = {985, 170} end
   if f == 34 then shot("kw_hover_core") end
-  if f == 35 then V.fakeMouse = nil end
+  if f == 35 then V.fakeMouse = {640, 350}; H.focusStep(1); H.focusStep(1) end
+  if f == 36 then
+    shot("reactor_hover_focus")
+    G.selftestFocus = H.focusedHit() and "focus-ok" or "focus-FAIL"
+  end
   if f == 37 then
+    V.fakeMouse = nil; H.kbFocus = nil
     G.tab = "build"
     for _ = 1, 4 do G.addDrone(G.makeDrone(3)) end
     G.addDrone(G.makeDrone(1))
@@ -433,7 +449,7 @@ local function runSelftest()
   if f == 96 then shot("theme_bloodmoon_map") end
   if f == 98 then Set.v.theme = "cbsafe"; applySettings("theme"); G.tab = "ops" end
   if f == 102 then shot("theme_cbsafe_ops") end
-  if f == 104 then Set.v.theme = "oblivion"; applySettings("theme"); G.tab = "core" end
+  if f == 104 then Set.v.theme = "command"; applySettings("theme"); G.tab = "core" end
   -- boss key
   if f == 106 then Set.v.disguise = "sheet"; G.setBossMode(true) end
   if f == 110 then shot("boss_sheet") end
@@ -750,7 +766,7 @@ local function runSelftest()
     G.selftestSounds = ok and "sounds-ok" or "sounds-FAIL"
   end
   if f == 779 then shot("theme_dvd") end
-  if f == 781 then Set.v.theme = "oblivion"; applySettings("theme") end
+  if f == 781 then Set.v.theme = "command"; applySettings("theme") end
   -- meme pack
   if f == 782 then
     Set.v.theme = "mlg"; applySettings("theme"); G.tab = "core"
@@ -765,14 +781,14 @@ local function runSelftest()
   if f == 785 then Set.v.theme = "doge"; applySettings("theme"); for _ = 1, 4 do Memes.update(1.2) end end
   if f == 787 then shot("theme_doge") end
   if f == 788 then
-    Memes.caps = {}; Set.v.theme = "oblivion"; applySettings("theme")
+    Memes.caps = {}; Set.v.theme = "command"; applySettings("theme")
     Memes.resetCaption(); G.meme("overheat")
     if #Memes.caps > 0 or FX.soundPack == "meme" or G.memeOn or G.rankTitle(9999):find("9000") then G.selftestMemes = "memes-LEAK" end
   end
   if f == 790 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
       " " .. tostring(G.selftestImport) .. " " .. tostring(G.selftestReset) .. " " .. tostring(G.selftestLazy) ..
-      " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
+      " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestFocus) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
       " " .. tostring(G.selftestTet) .. " " .. tostring(G.selftestFiesta) .. " " .. tostring(G.selftestHeat) ..
       " " .. tostring(G.selftestBoss) .. " " .. tostring(G.selftestAltar) .. " " .. tostring(G.selftestPilot) .. " " .. tostring(G.selftestForge) .. " " .. tostring(G.selftestTree) .. " " .. tostring(G.selftestShatter) .. " " .. tostring(G.selftestRigs) .. " " .. tostring(G.selftestPrism) .. " " .. tostring(G.selftestSounds) .. " " .. tostring(G.selftestMemes) ..
       " " .. (G.mapReport():gsub("\n", " | ")) ..
@@ -856,6 +872,24 @@ local function drawNap()
   V.lg.setFont(Fo.s); col(H.C.dim); V.lg.printf("MOVE THE MOUSE TO WAKE UP  //  10 FPS POWER SAVING", 0, 410, 1280, "center")
 end
 
+-- system cursor affordance: a hand over anything clickable (including the reactor), "no" over disabled controls
+local cursors, cursorNow = {}, nil
+local function updateCursor(isNapping)
+  if Set.v.reticle or selftest or not love.mouse.isCursorSupported() then return end
+  local mx, my = V.mouse()
+  local kind = "arrow"
+  if not isNapping and not G.bossMode then
+    local h = H.hitAt(mx, my)
+    if h then kind = h.disabled and "no" or "hand"
+    elseif G.tab == "core" and not Ov.isModal() and Reactor.hit(mx, my) then kind = "hand" end
+  end
+  if kind ~= cursorNow then
+    cursorNow = kind
+    cursors[kind] = cursors[kind] or love.mouse.getSystemCursor(kind)
+    love.mouse.setCursor(cursors[kind])
+  end
+end
+
 local function drawReticle()
   local mx, my = V.mouse()
   local hot = H.hitAt(mx, my) ~= nil or (G.tab == "core" and Reactor.hit(mx, my))
@@ -897,9 +931,24 @@ function love.draw()
   love.graphics.push()
   if shake > 0 then love.graphics.translate(H.rnd(-shake, shake), H.rnd(-shake, shake)) end
   local scene = SCENES[G.tab] or SCENES.core
+  -- screen transition: the new screen rises into place while a scan line wipes down over it
+  if G.tab ~= screenTab then screenTab, screenT = G.tab, 0 end
+  screenT = math.min(1, screenT + love.timer.getDelta() / H.MO.screen)
+  local tr = (Set.v.reducedMotion or selftest or not H.isHud()) and 1 or H.ease.outCubic(screenT)
+  H.offY = (1 - tr) * 10
+  if tr < 1 then love.graphics.translate(0, H.offY) end
   scene.draw()
+  if tr < 1 then love.graphics.translate(0, -H.offY) end
+  H.offY = 0
   Shatter.draw()
   love.graphics.pop()
+  if tr < 1 then
+    local x0, _, x1 = V.extents()
+    local top, bot = F.TOP + 1, F.TICKER
+    local sy = top + (bot - top) * tr
+    H.col(H.C.bg, 0.85 * (1 - tr)); V.lg.rectangle("fill", x0, sy, x1 - x0, bot - sy)
+    H.col(H.C.line, 0.7 * (1 - tr)); V.lg.rectangle("fill", x0, sy, x1 - x0, 1)
+  end
   F.topBar()
   F.dock()
   F.signal()
@@ -916,7 +965,9 @@ function love.draw()
     V.lg.setFont(H.fonts.xs); H.col(H.C.white, 0.8)
     V.lg.print(love.timer.getFPS() .. " FPS", 4, 706)
   end
+  if not isNapping then H.drawKbFocus() end
   if Set.v.reticle and not isNapping then drawReticle() end
+  updateCursor(isNapping)
   V.finish()
   if FX.flash > 0 then
     local c = FX.flashC
@@ -939,7 +990,7 @@ local function wake()
   return was
 end
 
-function love.mousemoved() wake() end
+function love.mousemoved() wake(); H.kbFocus = nil end
 
 function love.mousepressed(sx, sy, b)
   if wake() then return end -- the waking click is swallowed
@@ -1005,7 +1056,15 @@ function love.keypressed(k)
   if k == "f11" or (k == "return" and love.keyboard.isDown("lalt", "ralt")) then toggleFullscreen() return end
   if k == "f" and Memes.pressF(G.S) then return end
   -- panic button for the cursed themes: F9 always restores the default palette
-  if k == "f9" then Set.v.theme = "oblivion"; Set.save(); applySettings("theme"); FX.toast("THEME RESET", "Back to OBLIVION. Your eyes thank you.", H.C.line) return end
+  if k == "f9" then Set.v.theme = "command"; Set.save(); applySettings("theme"); FX.toast("THEME RESET", "Back to COMMAND. Your eyes thank you.", H.C.line) return end
+  -- keyboard focus works on every screen and modal: TAB / SHIFT+TAB to move, ENTER to press
+  if k == "tab" then
+    H.focusStep(love.keyboard.isDown("lshift", "rshift") and -1 or 1)
+    FX.play("tick", 1.5, 0.4)
+    return
+  end
+  if (k == "return" or k == "kpenter") and H.kbFocus and H.activateFocus() then return end
+  if k == "escape" and H.kbFocus then H.kbFocus = nil return end
   if G.settingsOpen then
     if k == "escape" then G.settingsOpen = false end
     return

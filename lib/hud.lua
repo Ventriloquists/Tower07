@@ -72,7 +72,64 @@ end
 H.fonts = {}
 function H.initFonts()
   local f = H.fonts
-  f.xs, f.s, f.m, f.l, f.xl, f.huge = V.newFont(11), V.newFont(13), V.newFont(16), V.newFont(22), V.newFont(30), V.newFont(52)
+  f.xs, f.s, f.m, f.l, f.xl = V.newFont(11), V.newFont(13), V.newFont(16), V.newFont(22), V.newFont(30)
+  -- display face: hero numbers and screen titles
+  f.huge, f.d1, f.dxl, f.d2, f.d3 = V.newFont(50, true), V.newFont(34, true), V.newFont(28, true), V.newFont(22, true), V.newFont(17, true)
+end
+
+----------------------------------------------------------------------
+-- Design tokens
+----------------------------------------------------------------------
+-- spacing scale (8pt grid with a 4pt half step), motion speeds (exponential approach rates, 1/s)
+H.SP = {xs = 4, s = 8, m = 12, l = 16, xl = 24, xxl = 32}
+H.MO = {fast = 22, base = 14, slow = 7, screen = 0.32}
+H.CUT = 7 -- chamfer size of the HUD silhouette
+
+-- easing curves for timed transitions (t in 0..1)
+H.ease = {
+  outCubic = function(t) t = 1 - t return 1 - t * t * t end,
+  outExpo = function(t) return t >= 1 and 1 or 1 - 2 ^ (-10 * t) end,
+  inOutCubic = function(t) return t < 0.5 and 4 * t * t * t or 1 - (-2 * t + 2) ^ 3 / 2 end,
+}
+
+----------------------------------------------------------------------
+-- Motion: eased per-element values. The UI is immediate mode, so state is keyed by layout position.
+----------------------------------------------------------------------
+H.reduced = false -- settings: reduced motion snaps every tween
+local motion, mframe = {}, 0
+-- init: starting value for a key that was not drawn last frame (e.g. 0 to fade something in each time it appears)
+function H.tween(key, target, speed, init)
+  local m = motion[key]
+  if m and init and mframe - m.f > 1 then m.v = init end
+  if not m then m = {v = init or target}; motion[key] = m end
+  m.f = mframe
+  if H.reduced or H.snap then m.v = target return target end
+  local dt = math.min(0.05, love.timer.getDelta())
+  m.v = m.v + (target - m.v) * (1 - math.exp(-(speed or H.MO.base) * dt))
+  if math.abs(target - m.v) < 0.002 then m.v = target end
+  return m.v
+end
+-- hover tween for a rect: 0..1
+function H.hoverT(x, y, w, h, hov, speed)
+  return H.tween(math.floor(x) .. ":" .. math.floor(y) .. ":" .. math.floor(w), hov and 1 or 0, speed or H.MO.fast)
+end
+local function motionGC()
+  mframe = mframe + 1
+  if mframe % 300 ~= 0 then return end
+  for k, m in pairs(motion) do if mframe - m.f > 120 then motion[k] = nil end end
+end
+
+-- the HUD style is the default look; desktop-app themes (H.style) keep their own drawing
+local function hud() return not H.style end
+H.isHud = hud
+
+function H.lerpC(a, b, t)
+  return a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
+end
+function H.chamfer(mode, x, y, w, h, c1, c2)
+  c1 = math.min(c1 or H.CUT, h * 0.45, w * 0.45)
+  c2 = math.min(c2 or c1, h * 0.45, w * 0.45)
+  lg.polygon(mode, x + c1, y, x + w, y, x + w, y + h - c2, x + w - c2, y + h, x, y + h, x, y + c1)
 end
 
 ----------------------------------------------------------------------
@@ -124,7 +181,7 @@ H.hits = {}
 H.tip = nil
 H.scrollRegions = {}
 H.onError = function() end
-function H.beginFrame() H.hits = {}; H.tip = nil; H.kwTip = nil; H.scrollRegions = {} end
+function H.beginFrame() H.hits = {}; H.tip = nil; H.kwTip = nil; H.scrollRegions = {}; motionGC() end
 function H.clearHits() H.hits = {}; H.tip = nil; H.kwTip = nil; H.scrollRegions = {} end
 -- register a wheel-scrollable area for this frame
 function H.scrollRegion(x, y, w, h, key, horizontal)
@@ -136,19 +193,25 @@ function H.scrollAt(x, y)
     if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then return r end
   end
 end
+-- H.offY: vertical offset of the content being drawn (screen transitions), so hover and hits match what is seen
+H.offY = 0
 function H.mouseIn(x, y, w, h, clip)
   local mx, my = V.mouse()
+  my = my - H.offY
   if clip and (my < clip[1] or my > clip[2]) then return false end
   return mx >= x and mx <= x + w and my >= y and my <= y + h
 end
 -- hold = true: keeps firing while the mouse button is held (hold-to-buy)
 function H.addHit(x, y, w, h, fn, clip, hold)
+  y = y + H.offY
   if clip then
     local y0, y1 = math.max(y, clip[1]), math.min(y + h, clip[2])
     if y1 <= y0 then return end
     y, h = y0, y1 - y0
   end
-  H.hits[#H.hits + 1] = {x = x, y = y, w = w, h = h, fn = fn, hold = hold}
+  local hit = {x = x, y = y, w = w, h = h, fn = fn, hold = hold}
+  H.hits[#H.hits + 1] = hit
+  return hit
 end
 function H.hitAt(x, y)
   for i = #H.hits, 1, -1 do
@@ -164,6 +227,51 @@ end
 function H.setTip(title, text) H.tip = {title = title, text = text} end
 
 ----------------------------------------------------------------------
+-- Keyboard focus: TAB / SHIFT+TAB walk every clickable thing in reading order, ENTER activates it.
+-- Hits are rebuilt each frame, so focus is remembered as a rectangle and re-found by position.
+----------------------------------------------------------------------
+H.kbFocus = nil
+local function sameRect(a, b) return math.abs(a.x - b.x) < 2 and math.abs(a.y - b.y) < 2 and math.abs(a.w - b.w) < 2 end
+local function readingOrder()
+  local list = {}
+  for _, h in ipairs(H.hits) do if h.w >= 12 and h.h >= 10 and h.hold ~= "drag" then list[#list + 1] = h end end
+  table.sort(list, function(a, b)
+    local ra, rb = math.floor(a.y / 14), math.floor(b.y / 14)
+    if ra ~= rb then return ra < rb end
+    return a.x < b.x
+  end)
+  return list
+end
+function H.focusStep(dir)
+  local list = readingOrder()
+  if #list == 0 then H.kbFocus = nil return end
+  local idx = 0
+  if H.kbFocus then
+    for i, h in ipairs(list) do if sameRect(h, H.kbFocus) then idx = i break end end
+  end
+  idx = idx + dir
+  if idx < 1 then idx = #list elseif idx > #list then idx = 1 end
+  local h = list[idx]
+  H.kbFocus = {x = h.x, y = h.y, w = h.w, h = h.h}
+end
+function H.focusedHit()
+  if not H.kbFocus then return end
+  for i = #H.hits, 1, -1 do if sameRect(H.hits[i], H.kbFocus) then return H.hits[i] end end
+end
+function H.activateFocus()
+  local h = H.focusedHit()
+  if not h then return false end
+  h.fn(h.x + h.w / 2, h.y + h.h / 2)
+  return true
+end
+-- drawn last each frame: the lock-on ticks around the keyboard-focused element
+function H.drawKbFocus()
+  local h = H.focusedHit()
+  if not h then return end
+  H.focusRing(h.x, h.y, h.w, h.h, h.disabled and C.dim or C.white, 1)
+end
+
+----------------------------------------------------------------------
 -- Primitives
 ----------------------------------------------------------------------
 -- H.style: set by desktop-app themes ("mac" / "win"): rounded outlines instead of corner brackets, no hatching
@@ -176,10 +284,46 @@ function H.brackets(x, y, w, h, l, c, a)
   end
   col(c, a)
   l = l or 8
+  local k = V.cutFor(w, h)
+  if k > 0 then
+    -- chamfered silhouette: only the two cut corners carry a bracket, tracing the diagonal (four brackets on
+    -- top of an outline read as clutter; two read as a signature)
+    lg.line(x, y + k + l, x, y + k, x + k, y, x + k + l, y)
+    lg.line(x + w - k - l, y + h, x + w - k, y + h, x + w, y + h - k, x + w, y + h - k - l)
+    return
+  end
   lg.line(x, y + l, x, y, x + l, y)
   lg.line(x + w - l, y, x + w, y, x + w, y + l)
   lg.line(x, y + h - l, x, y + h, x + l, y + h)
   lg.line(x + w - l, y + h, x + w, y + h, x + w, y + h - l)
+end
+
+-- focus lock-on: four corner ticks that close in on the hovered element (t = 0..1)
+function H.focusRing(x, y, w, h, c, t)
+  if t <= 0.01 then return end
+  local o = 5 * (1 - t)
+  local l = 6
+  col(c, t)
+  x, y, w, h = x - 3 - o, y - 3 - o, w + 6 + o * 2, h + 6 + o * 2
+  lg.line(x, y + l, x, y, x + l, y)
+  lg.line(x + w - l, y, x + w, y, x + w, y + l)
+  lg.line(x, y + h - l, x, y + h, x + l, y + h)
+  lg.line(x + w - l, y + h, x + w, y + h, x + w, y + h - l)
+end
+
+-- section heading: index number, display title, hairline rule (used for screen and column titles)
+function H.heading(title, x, y, w, c, index, sub)
+  local f = H.fonts
+  local tx = x
+  if index then
+    lg.setFont(f.xs); col(c or C.line, 0.9); lg.print(index, x, y + 3)
+    tx = x + f.xs:getWidth(index) + 8
+  end
+  lg.setFont(f.s); col(C.white); lg.print(title, tx, y)
+  local tw = f.s:getWidth(title)
+  if sub then lg.setFont(f.xs); col(C.dim); lg.printf(sub, x, y + 2, w, "right") end
+  col(C.faint, 0.9); lg.line(x, y + 18, x + w, y + 18)
+  col(c or C.line, 0.9); lg.rectangle("fill", x, y + 17, math.min(w, tx - x + tw), 2)
 end
 
 function H.hatch(x, y, w, h, c, a, gap)
@@ -384,6 +528,16 @@ function H.label(text, x, y, c, a, font)
 end
 
 function H.rowFrame(x, y, w, h, active, hov, c)
+  if hud() then
+    local t = H.hoverT(x, y, w, h, hov)
+    c = c or C.line
+    col(C.panel, 0.9); lg.rectangle("fill", x, y, w, h)
+    col(c, 0.025 + 0.07 * t); lg.rectangle("fill", x, y, w, h)
+    col(active and c or C.faint, active and (0.35 + 0.45 * t) or 0.7); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    -- selection spine on the left edge grows with hover
+    if active then col(t > 0.5 and C.white or c, 0.5 + 0.5 * t); lg.rectangle("fill", x, y + H.CUT + 2, 2, (h - H.CUT - 4) * (0.35 + 0.65 * t)) end
+    return
+  end
   col(C.panel, 0.88)
   lg.rectangle("fill", x, y, w, h)
   if hov then col(C.line, 0.07); lg.rectangle("fill", x, y, w, h) end
@@ -411,9 +565,11 @@ function H.button(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold)
       col(enabled and (hov and C.white or c) or C.faint)
     end
     lg.printf(text, x, y + h / 2 - font:getHeight() / 2, w, "center")
-    H.addHit(x, y, w, h, function() if enabled then fn() else H.onError() end end, clip, hold)
+    local hit = H.addHit(x, y, w, h, function() if enabled then fn() else H.onError() end end, clip, hold)
+    if hit then hit.disabled = not enabled end
     return
   end
+  if hud() then return H.hudButton(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold, hov) end
   if primary and enabled then
     -- filled call-to-action with a soft pulse
     local t = love.timer.getTime()
@@ -432,7 +588,94 @@ function H.button(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold)
     col(enabled and (hov and C.white or c) or C.faint)
   end
   lg.printf(text, x, y + h / 2 - font:getHeight() / 2, w, "center")
-  H.addHit(x, y, w, h, function() if enabled then fn() else H.onError() end end, clip, hold)
+  local hit = H.addHit(x, y, w, h, function() if enabled then fn() else H.onError() end end, clip, hold)
+  if hit then hit.disabled = not enabled end
+end
+
+-- HUD button: chamfered plate. Idle is calm (no ambient animation); hover fills, brightens the edge and runs one light
+-- sweep across the face; press sinks 1px and darkens; a refused click shakes the button red. Disabled = flat and dim.
+-- The lock-on corner ticks are reserved for keyboard focus (drawn by H.drawKbFocus), so hover never doubles up.
+function H.hudButton(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold, hov)
+  local key = math.floor(x) .. ":" .. math.floor(y) .. ":" .. math.floor(w)
+  local t = H.hoverT(x, y, w, h, hov)
+  local down = hov and love.mouse.isDown(1)
+  local cut = math.min(H.CUT, h * 0.3)
+  local now = love.timer.getTime()
+  local d = H.denied
+  local deny = d and d.k == key and now - d.t < 0.4 and (1 - (now - d.t) / 0.4) or 0
+  if deny > 0 and not H.reduced then x = x + math.sin((now - d.t) * 55) * 4 * deny end
+  local yy = y + (down and 1 or 0)
+  if primary and enabled then
+    col(c, 0.12 * t); H.chamfer("fill", x - 3, yy - 3, w + 6, h + 6, cut + 2)
+    col(c, down and 0.74 or (0.88 + 0.12 * t)); H.chamfer("fill", x, yy, w, h, cut)
+    lg.setColor(1, 1, 1, down and 0.05 or (0.14 + 0.1 * t)); lg.rectangle("fill", x + cut, yy, w - cut, 1)
+    lg.setColor(0, 0, 0, 0.18); lg.rectangle("fill", x, yy + h - 2, w - cut, 2)
+    lg.setFont(font); col(C.bg)
+  elseif enabled then
+    col(C.panel, 0.94); H.chamfer("fill", x, yy, w, h, cut)
+    col(c, (down and 0.2 or 0.06) + 0.08 * t); H.chamfer("fill", x, yy, w, h, cut)
+    col(c, 0.32 + 0.6 * t); H.chamfer("line", x + 0.5, yy + 0.5, w - 1, h - 1, cut)
+    local sh = (h - cut * 2 - 2) * (0.45 + 0.55 * t)
+    col(c, 0.9); lg.rectangle("fill", x + 1, yy + h / 2 - sh / 2, 2, sh)
+    lg.setFont(font)
+    local r, g, b = H.lerpC(c, C.white, t)
+    lg.setColor(r, g, b, 1)
+  else
+    col(C.panel, 0.55); H.chamfer("fill", x, yy, w, h, cut)
+    col(C.faint, 0.9); H.chamfer("line", x + 0.5, yy + 0.5, w - 1, h - 1, cut)
+    lg.setFont(font); col(C.dim, 0.6)
+  end
+  -- one sweep of light per hover, driven by the hover tween so it is caused by the cursor, never ambient
+  if enabled and t > 0.02 and t < 0.98 and hov then
+    lg.push("all")
+    lg.intersectScissor(x, yy, w, h)
+    local sx = x - h + t * (w + h * 2)
+    lg.setColor(1, 1, 1, primary and 0.2 or 0.08)
+    lg.polygon("fill", sx, yy + h, sx + 10, yy + h, sx + 10 + h * 0.6, yy, sx + h * 0.6, yy)
+    lg.pop()
+  end
+  lg.printf(text, x, yy + h / 2 - font:getHeight() / 2, w, "center")
+  if deny > 0 then col(C.red, deny); H.chamfer("line", x - 1.5, yy - 1.5, w + 3, h + 3, cut + 1) end
+  local hit = H.addHit(x, y, w, h, function()
+    if enabled then fn() else H.denied = {k = key, t = love.timer.getTime()}; H.onError() end
+  end, clip, hold)
+  if hit then hit.disabled = not enabled end
+end
+
+-- segmented control: one plate, a selection slab that glides to the chosen option
+function H.segmented(x, y, w, h, labels, sel, onSelect, key, c)
+  c = c or C.line
+  local n = #labels
+  local sw = w / n
+  local f = H.fonts.xs
+  if not hud() then
+    for k, l in ipairs(labels) do
+      local sx = x + (k - 1) * sw
+      local on = sel == k
+      local hov = H.mouseIn(sx, y, sw - 4, h)
+      col(c, on and 0.3 or (hov and 0.12 or 0.04)); lg.rectangle("fill", sx, y, sw - 4, h)
+      H.brackets(sx, y, sw - 4, h, 4, on and C.white or C.dim)
+      lg.setFont(f); col(on and C.white or C.dim)
+      lg.printf(l, sx, y + h / 2 - f:getHeight() / 2, sw - 4, "center")
+      H.addHit(sx, y, sw - 4, h, function() onSelect(k) end)
+    end
+    return
+  end
+  col(C.panel, 0.9); H.chamfer("fill", x, y, w, h, 5)
+  col(C.faint); H.chamfer("line", x + 0.5, y + 0.5, w - 1, h - 1, 5)
+  local px = H.tween("seg:" .. (key or x .. ":" .. y), x + ((sel or 1) - 1) * sw, H.MO.base)
+  col(c, 0.22); lg.rectangle("fill", px + 2, y + 2, sw - 4, h - 4)
+  col(c); lg.rectangle("fill", px + 2, y + h - 3, sw - 4, 2)
+  for k, l in ipairs(labels) do
+    local sx = x + (k - 1) * sw
+    local on = sel == k
+    local hov = H.mouseIn(sx, y, sw, h)
+    if k > 1 then col(C.faint); lg.line(sx, y + 6, sx, y + h - 6) end
+    if hov and not on then col(c, 0.07); lg.rectangle("fill", sx + 2, y + 2, sw - 4, h - 4) end
+    lg.setFont(f); col(on and C.white or (hov and C.line or C.dim))
+    lg.printf(l, sx, y + h / 2 - f:getHeight() / 2, sw, "center")
+    H.addHit(sx, y, sw, h, function() onSelect(k) end)
+  end
 end
 
 -- red count badge (notification pattern)
@@ -442,8 +685,14 @@ function H.badge(x, y, n, c)
   local f = H.fonts.xs
   local w = math.max(16, f:getWidth(txt) + 8)
   c = c or C.red
-  col(c)
-  lg.rectangle("fill", x - w / 2, y - 8, w, 16, 8, 8)
+  if hud() then
+    -- a counter tag: square-cut, with a dark keyline so it separates from whatever it sits on
+    col(C.bg); lg.rectangle("fill", x - w / 2 - 1, y - 9, w + 2, 18)
+    col(c); H.chamfer("fill", x - w / 2, y - 8, w, 16, 4)
+  else
+    col(c)
+    lg.rectangle("fill", x - w / 2, y - 8, w, 16, 8, 8)
+  end
   -- dark text on bright badges, light text on dark ones
   local lum = 0.3 * c[1] + 0.59 * c[2] + 0.11 * c[3]
   col(lum > 0.62 and C.bg or C.white)
@@ -453,6 +702,26 @@ end
 
 -- standard panel card with optional header
 function H.card(x, y, w, h, title, c, sub)
+  if hud() then
+    c = c or C.line
+    col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
+    -- top light: the panel is lit from above, fading down
+    col(c, 0.045); lg.rectangle("fill", x + V.cutFor(w, h), y + 1, w - V.cutFor(w, h), math.min(h - 2, 22))
+    col(C.faint, 0.85); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    -- accent: a short lit segment of the top edge after the cut, and a tick on the bottom-right cut
+    local k = V.cutFor(w, h)
+    col(c, 0.95); lg.rectangle("fill", x + k, y, math.min(44, w * 0.3), 2)
+    col(c, 0.55); lg.line(x + w - k, y + h - 0.5, x + w - 0.5, y + h - k)
+    if title then
+      H.label(title, x + 12, y + 8, c)
+      if sub then
+        lg.setFont(H.fonts.xs); col(C.dim)
+        lg.printf(sub, x, y + 8, w - 12, "right")
+      end
+      col(C.faint, 0.9); lg.line(x + 12, y + 24, x + w - 12, y + 24)
+    end
+    return
+  end
   col(C.panel, 0.9); lg.rectangle("fill", x, y, w, h)
   col(C.faint, 0.6); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
   H.brackets(x, y, w, h, 8, c or C.line, 0.9)
@@ -468,8 +737,19 @@ end
 
 -- smooth progress bar
 function H.bar(x, y, w, h, frac, c, bg)
+  c = c or C.line
   col(bg or C.faint, 0.6); lg.rectangle("fill", x, y, w, h)
-  col(c or C.line); lg.rectangle("fill", x, y, w * clamp(frac, 0, 1), h)
+  local f = clamp(frac or 0, 0, 1)
+  if hud() and w >= 30 then
+    -- fills glide to their value; the leading edge carries a bright cap
+    f = clamp(H.tween("bar" .. math.floor(x) .. ":" .. math.floor(y) .. ":" .. math.floor(w), f, H.MO.base), 0, 1)
+    col(c, 0.95); lg.rectangle("fill", x, y, w * f, h)
+    if f > 0.005 and f < 0.999 then
+      col(C.white, 0.85); lg.rectangle("fill", x + w * f - 1, y - (h >= 4 and 1 or 0), 2, h + (h >= 4 and 2 or 0))
+    end
+    return
+  end
+  col(c); lg.rectangle("fill", x, y, w * f, h)
 end
 
 -- truncate a string to fit a width

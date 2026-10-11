@@ -132,7 +132,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.l); col(C.white); lg.print("ARCHIVE", 24, 58)
+  lg.setFont(Fo.d2); col(C.white); lg.print("ARCHIVE", 24, 54)
   milestones()
   logs()
   record()

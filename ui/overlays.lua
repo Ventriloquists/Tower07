@@ -22,13 +22,27 @@ function Ov.isModal()
   return G.settingsOpen or G.fiesta ~= nil or G.altar ~= nil or G.vaultOpen or G.combine ~= nil or G.report ~= nil or G.dailyPending or #G.choiceQueue > 0 or G.perkChoice ~= nil
 end
 
+-- modal entrance: the backdrop fades in and the panel's frame draws itself, every time a modal opens
+local dimFrame, dimOpen, frameN = -10, 0, 0
 local function dim(a)
   local x0, y0, x1, y1 = V.extents()
-  col(C.bg, a or 0.86)
+  if frameN - dimFrame > 1 then dimOpen = love.timer.getTime() end
+  dimFrame = frameN
+  local k = (H.reduced or H.snap) and 1 or H.ease.outCubic(math.min(1, (love.timer.getTime() - dimOpen) / 0.18))
+  col(C.bg, (a or 0.86) * k)
   lg.rectangle("fill", x0, y0, x1 - x0, y1 - y0)
 end
 
 local function box(x, y, w, h, c)
+  if H.isHud() then
+    local k = (H.reduced or H.snap) and 1 or H.ease.outExpo(math.min(1, (love.timer.getTime() - dimOpen) / 0.35))
+    col(C.panel); lg.rectangle("fill", x, y, w, h)
+    col(c, 0.07); lg.rectangle("fill", x + H.CUT * 2, y + 1, w - H.CUT * 2, 29)
+    col(C.faint); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    col(c); lg.rectangle("fill", x + H.CUT * 2, y, (w - H.CUT * 2) * k, 2)
+    H.brackets(x, y, w, h, 14, c, 0.9)
+    return
+  end
   col(C.panel); lg.rectangle("fill", x, y, w, h)
   H.hatch(x, y, w, 30, c, 0.18, 6)
   H.brackets(x, y, w, h, 14, c)
@@ -46,6 +60,20 @@ local function tooltip()
   local x = math.min(mx + 14, 1280 - w - 6)
   local y = my + 16
   if y + h > 712 then y = my - h - 12 end -- no room below (e.g. the dock): open above the cursor
+  if H.isHud() then
+    -- tooltip card: rises 4px into place as it appears; a title band separates heading from body
+    local k = H.tween("tip:" .. tip.title, 1, H.MO.fast, 0)
+    y = y + (1 - k) * 4
+    local ac = kw and C.orange or C.line
+    col(C.bg, 0.97 * k); lg.rectangle("fill", x, y, w, h)
+    col(ac, 0.08 * k); lg.rectangle("fill", x, y, w, 24)
+    col(C.faint, k); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
+    col(ac, k); lg.rectangle("fill", x, y, 2, h)
+    if kw then H.label("GLOSSARY", x + w - 70, y + 7, C.orange, k) end
+    lg.setFont(H.fonts.s); col(kw and C.orange or C.white, k); lg.print(tip.title, x + 12, y + 5)
+    H.richf(tip.text, x + 12, y + 28, w - 22, "left", C.white, 0.82 * k, H.fonts.xs, true)
+    return
+  end
   col(C.bg, 0.97); lg.rectangle("fill", x, y, w, h)
   H.brackets(x, y, w, h, 6, kw and C.orange or C.white)
   if kw then
@@ -277,6 +305,7 @@ local function perks()
 end
 
 function Ov.draw()
+  frameN = frameN + 1
   if G.settingsOpen then
     SettingsUI.draw()
   elseif G.fiesta then

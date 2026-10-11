@@ -30,7 +30,7 @@ local function units()
   local S = G.S
   local Fo = H.fonts
   local x, w = 24, 640
-  lg.setFont(Fo.l); col(C.white); lg.print("UNITS", x, 62)
+  lg.setFont(Fo.d2); col(C.white); lg.print("UNITS", x, 58)
   H.label(H.fit(Fo.xs, "OUTPUT x" .. fmt(G.globalMult) .. "  //  +" .. fmt(G.getCps()) .. "/S", 216), x + 84, 70, C.dim)
   for k, m in ipairs(G.BUYMODES) do
     -- right-aligned so the last button ends 12px before the AUTO toggle
@@ -79,7 +79,7 @@ local function units()
     local pct = G.baseCps > 0 and total / G.baseCps * 100 or 0
     H.label("EACH +" .. fmt(G.genEach[i]) .. "/S   TOTAL +" .. fmt(total) .. "/S   " .. string.format("%.0f%%", pct), x + 66, y + 42, C.line, 0.85)
     -- right block: owned + cost
-    lg.setFont(Fo.xl); col(C.white); lg.printf(tostring(owned), x + w - 250, y + 6, 100, "right")
+    lg.setFont(Fo.dxl); col(C.white); lg.printf(tostring(owned), x + w - 250, y + 6, 100, "right")
     H.label("OWNED", x + w - 196, y + 42, C.dim)
     local bx = x + w - 136
     col(can and C.orange or C.faint, can and 0.85 or 0.4)
@@ -107,7 +107,7 @@ local function tech()
   local x, w = 688, 568
   local affordable = 0
   for _, u in ipairs(list) do if S.stardust >= u.cost then affordable = affordable + 1 end end
-  lg.setFont(Fo.l); col(C.white); lg.print("TECH", x, 62)
+  lg.setFont(Fo.d2); col(C.white); lg.print("TECH", x, 58)
   H.label(#list .. " AVAILABLE  //  " .. S.upBought .. " INSTALLED", x + 70, 70, C.dim)
   H.button(x + w - 300, 64, 196, 28, "INSTALL ALL (" .. affordable .. ")", affordable > 0, function()
     local mx, my = V.mouse()

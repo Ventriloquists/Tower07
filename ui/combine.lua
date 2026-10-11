@@ -96,7 +96,7 @@ function Cb.draw()
   if cb.phase == "done" then
     local d = cb.result
     local cx = 640
-    lg.setFont(Fo.xl); col(nc); lg.printf("FUSION COMPLETE", X0, sy, W, "center")
+    lg.setFont(Fo.dxl); col(nc); lg.printf("FUSION COMPLETE", X0, sy, W, "center")
     droneCard(d, cx - 120, sy + 50, 240, 260, true)
     H.label("+" .. math.floor(G.droneBonus(d) * 100 + 0.5) .. "% DRONE YIELD   //   " .. D.RARITY[d.r].slots .. " MODULE SLOTS", cx - 140, sy + 320, C.line)
     H.button(cx - 110, Y0 + HH - 64, 220, 44, "CONTINUE", true, function() G.combine = nil end, nc, Fo.m, nil, true)

@@ -14,9 +14,13 @@ R.K = 0.76 -- ring scale
 function R.draw()
   local S = G.S
   local OX, OY, CR, k = G.OX, G.OY, G.CORE_R, R.K
-  local hov = H.mouseIn(OX - CR * 1.5, OY - CR * 1.5, CR * 3, CR * 3) and not G.modal
+  -- hover uses exactly the clickable circle, so the feedback never promises a click that will not land
+  local mx, my = V.mouse()
+  local hov = R.hit(mx, my) and not G.modal
+  local down = hov and love.mouse.isDown(1)
+  local ht = H.tween("reactorHov", hov and 1 or 0, H.MO.fast)
   local kick = G.coreKick
-  local pr = CR * (1 + 0.02 * math.sin(G.time * 2) - kick * 0.6)
+  local pr = CR * (1 + 0.02 * math.sin(G.time * 2) - kick * 0.6) * (down and 0.96 or 1)
   local pulse = 0.5 + 0.5 * math.sin(G.time * 2)
   local surging = G.hasBuff("CORE SURGE")
 
@@ -81,24 +85,35 @@ function R.draw()
   R.heatGauge(OX, OY, k)
 
   -- core
-  if hov then
+  -- target lock: on hover four brackets close in on the clickable radius and the core lifts in brightness
+  local first = S.clicks < 5
+  local lockT = math.max(ht, first and (0.55 + 0.25 * math.sin(G.time * 3)) or 0)
+  if lockT > 0.01 then
+    local rr = CR * 1.55 + (1 - lockT) * 14
     lg.setBlendMode("add")
-    col(C.line, 0.06); lg.circle("fill", OX, OY, pr * 1.25, 48)
+    col(C.line, 0.07 * lockT); lg.circle("fill", OX, OY, pr * 1.3, 48)
     lg.setBlendMode("alpha")
+    lg.setLineWidth(2)
+    col(down and C.white or C.line, lockT)
+    for i = 0, 3 do
+      local a = i * TAU / 4 + TAU / 8
+      lg.arc("line", "open", OX, OY, rr, a - 0.22, a + 0.22, 10)
+    end
+    lg.setLineWidth(1)
   end
-  col(surging and C.orange or C.teal, 0.25 + kick * 2 + (hov and 0.1 or 0))
+  col(surging and C.orange or C.teal, 0.25 + kick * 2 + 0.12 * ht + (down and 0.12 or 0))
   lg.circle("fill", OX, OY, pr, 64)
-  for r = 0.3, 1.0, 0.175 do col(C.line, 0.18); lg.circle("line", OX, OY, pr * r, 64) end
-  col(C.line, hov and 1 or 0.8)
-  lg.setLineWidth(1.5); lg.circle("line", OX, OY, pr, 64); lg.setLineWidth(1)
-  col(C.line, 0.12)
+  for r = 0.3, 1.0, 0.175 do col(C.line, 0.12); lg.circle("line", OX, OY, pr * r, 64) end
+  col(C.line, 0.75 + 0.25 * ht)
+  lg.setLineWidth(1.5 + ht); lg.circle("line", OX, OY, pr, 64); lg.setLineWidth(1)
+  col(C.line, 0.07)
   for i = 0, 11 do
     local a = i / 12 * TAU + G.time * 0.05
     lg.line(OX + math.cos(a) * pr * 0.3, OY + math.sin(a) * pr * 0.3, OX + math.cos(a) * pr, OY + math.sin(a) * pr)
   end
   local sw = G.time * (surging and 5 or 1.4)
   for j = 0, 14 do
-    col(surging and C.orange or C.line, 0.18 * (1 - j / 14))
+    col(surging and C.orange or C.line, 0.13 * (1 - j / 14))
     local a = sw - j * 0.04
     lg.line(OX, OY, OX + math.cos(a) * pr, OY + math.sin(a) * pr)
   end
@@ -119,10 +134,16 @@ function R.draw()
 
   FX.drawWaves()
 
-  if S.clicks < 5 then
-    lg.setFont(H.fonts.s)
-    col(C.orange, 0.6 + pulse * 0.4)
-    lg.printf("<< CLICK THE CORE TO HARVEST >>", OX - 200, OY + 120, 400, "center")
+  -- action caption: taught to new players, then shown only while the cursor is on the core
+  local capA = first and 1 or ht
+  if capA > 0.01 then
+    local cy = OY + CR * 1.55 + 10 + (1 - capA) * 4
+    lg.setFont(H.fonts.xs)
+    local txt = first and "TAP THE CORE TO HARVEST" or "HARVEST  //  CLICK OR SPACE"
+    local tw = H.fonts.xs:getWidth(txt) + 20
+    col(C.bg, 0.85 * capA); lg.rectangle("fill", OX - tw / 2, cy, tw, 17)
+    col(first and C.orange or C.line, capA); lg.rectangle("fill", OX - tw / 2, cy, 2, 17)
+    col(first and C.orange or C.white, capA); lg.printf(txt, OX - tw / 2, cy + 3, tw, "center")
   end
 end
 

@@ -28,7 +28,7 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
 - **Meta progression**: technician ranks with pick-1-of-3 perks, an endless Signal Track reward ladder, directives, a daily supply streak, timed world events and 300+ log entries.
 - **Reboot (prestige)**: trade the cycle for Core Data and spend it in a zoomable, pannable protocol skill tree: 6 branches, 54 nodes, 200+ ranks (output, tapping, fleet, map range, salvage, signals).
 - **Glossary**: every game term is highlighted in the UI and explained on hover.
-- **Settings**: 22 color themes (including high-contrast, colorblind-safe, memey and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
+- **Settings**: the COMMAND house style plus 70+ color themes (including high-contrast, colorblind-safe, memey and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
   - **Boss key (F12)**: disguises the game as a spreadsheet or build log.
   - **Nap mode** and **eco mode** to save power.
   - **Touch-grass reminders**.
@@ -60,6 +60,7 @@ The window can be resized, and fullscreen is supported (F11).
 | Click / Space | Tap the core |
 | Hold mouse | Keep buying |
 | 1–8 | Switch scenes |
+| Tab / Shift+Tab, Enter | Move keyboard focus between controls, press the focused one |
 | P | Spend perk points |
 | B | Cycle buy amount (x1 / x10 / x100 / MAX) |
 | M | Mute |
@@ -81,7 +82,18 @@ game/               game state & logic (core, tactical map, meta loops, data, gl
 ui/                 frame (top bar / dock / comms), one file per scene, overlays, settings, themes
 ```
 
-All sound effects are synthesized at startup. The game uses no image or audio assets.
+Sound effects are synthesized at startup; the meme themes can also play MP3s from `sounds/`. The game uses no image assets.
+
+### Design system
+
+The house style is **COMMAND** (the default theme): graphite surfaces, ice-white interface light and one warm signal amber for anything that needs action. Every HUD theme shares the same building blocks; desktop-app themes (macOS, Windows, web) keep their own drawing.
+
+- **Tokens** (`lib/hud.lua`): palette roles in `H.C` (`bg`, `panel`, `line` = interface light, `white` = text, `dim`, `faint` = separators, `orange` = action, `red` = danger, `gold` = reward), spacing `H.SP` (8 pt grid), motion speeds `H.MO`, easing curves `H.ease`, chamfer size `H.CUT`.
+- **Silhouette**: panel-sized rectangles lose their top-left and bottom-right corners (`V.chamfer` in `lib/view.lua`); corner brackets follow the cut.
+- **Type**: Bahnschrift for the interface, Franklin Gothic for display (`H.fonts.huge`, `d1`, `dxl`, `d2`, `d3`), falling back to Bahnschrift.
+- **Components**: `H.button` (hover fill sweep, press sink, lock-on focus ticks, light sweep on primary actions, hatched disabled state), `H.card`, `H.rowFrame`, `H.segmented` (sliding selection), `H.heading`, `H.bar` (gliding fill with a lit leading edge), `H.focusRing`, `H.badge`.
+- **Interaction**: idle controls are calm; hover fills, brightens the edge and runs one light sweep; press sinks 1px; a refused click shakes the control red and buzzes. The system cursor turns into a hand over anything clickable (the reactor included) and a "no" sign over disabled controls. **TAB / SHIFT+TAB** move a keyboard focus (lock-on corner ticks) through every control in reading order, **ENTER** presses it, **ESC** clears it. One filled call to action per area; red means danger only.
+- **Motion**: `H.tween` / `H.hoverT` give immediate-mode elements eased state. Screens rise in behind a scan-line wipe, the dock indicator glides between tabs, modals fade their backdrop and draw their frame, tooltips rise into place, banners open as a letterbox. **Reduced motion** (Settings > Comfort) snaps all of it and stops the background drift and grain.
 
 **Self-test**: drives every system headlessly, captures screenshots and writes `selftest_result.txt` to its save folder.
 

@@ -39,7 +39,7 @@ local function prestige()
   H.brackets(x, y, w, h, 12, C.red)
   lg.setFont(Fo.m); col(C.red); lg.print("REBOOT PROTOCOL", x + 14, y + 6)
   H.label("CORE DATA IN BANK", x + 14, y + 40, C.dim)
-  lg.setFont(Fo.xl); col(C.white); lg.print(fmt(S.dm), x + 14, y + 52)
+  lg.setFont(Fo.dxl); col(C.white); lg.print(fmt(S.dm), x + 14, y + 52)
   H.label("LIFETIME " .. fmt(S.dmTotal) .. "  //  OUTPUT x" .. fmt(G.cdBonus()), x + 14, y + 94, C.dim)
   -- the big preview
   local py = y + 116
@@ -355,7 +355,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.l); col(C.white); lg.print("REBOOT", 24, 58)
+  lg.setFont(Fo.d2); col(C.white); lg.print("REBOOT", 24, 54)
   updateDrag()
   prestige()
   tree()

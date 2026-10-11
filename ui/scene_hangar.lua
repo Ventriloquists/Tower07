@@ -42,7 +42,7 @@ local function banner()
   H.hatch(x, y, w, h, C.line, 0.05, 8)
   H.brackets(x, y, w, h, 12, C.line)
   H.droneIcon(x + w / 2, y + 92, 2.6, C.white)
-  lg.setFont(Fo.xl); col(C.white); lg.printf("FABRICATION", x, y + 150, w, "center")
+  lg.setFont(Fo.dxl); col(C.white); lg.printf("FABRICATION", x, y + 150, w, "center")
   lg.setFont(Fo.s); col(C.orange); lg.printf("EVERY BATCH: PICK 1 OF 3", x, y + 186, w, "center")
   if G.eventActive("FRENZY") then
     col(C.white, 0.9); lg.rectangle("fill", x, y + h - 20, w, 20)
@@ -180,7 +180,7 @@ local function detail()
   if d.r >= 3 then H.hatch(x, y, w, h, rc, 0.05, 8) end
   if d.r == #D.RARITY then H.holoFX(x, y, w, h, 0.6) end
   H.droneIcon(x + 60, y + 60, 1.7, rc)
-  lg.setFont(Fo.xl); col(C.white); lg.print(tostring(d.id), x + 120, y + 8)
+  lg.setFont(Fo.dxl); col(C.white); lg.print(tostring(d.id), x + 120, y + 8)
   lg.setFont(Fo.m); col(C.white); lg.print(H.fit(Fo.m, d.name or "", w - 270), x + 190, y + 16)
   H.button(x + w - 76, y + 10, 64, 22, d.lock and "LOCKED" or "LOCK", true, function() d.lock = not d.lock or nil; FX.play("tick", d.lock and 1.3 or 0.9) end,
     d.lock and C.gold or C.dim, Fo.xs)
@@ -321,7 +321,7 @@ local function vault()
   H.addHit(x, y, w, h - bh - 16, G.openVault)
   local fr = G.forgeReady()
   H.button(x + 12, bot - bh - 8, w - 24, bh, ready and "OPEN VAULT  //  ALTAR READY" or (fr > 0 and ("OPEN VAULT  //  " .. fr .. " FORGES READY") or "OPEN VAULT"), true, G.openVault,
-    ready and mc or C.line, Fo.m, nil, true)
+    ready and mc or C.line, Fo.m, nil, ready or fr > 0) -- filled only when there is something to collect
 end
 
 ----------------------------------------------------------------------
@@ -372,7 +372,7 @@ end
 
 function Sc.draw()
   local Fo = H.fonts
-  lg.setFont(Fo.l); col(C.white); lg.print("HANGAR", 24, 62)
+  lg.setFont(Fo.d2); col(C.white); lg.print("HANGAR", 24, 58)
   H.button(360, 56, 230, 22, "AUTO-FUSE // " .. G.autoFuseLabel(), true, G.cycleAutoFuse,
     (G.S.autoFuse or 0) > 0 and C.gold or C.dim, Fo.xs)
   H.button(600, 56, 200, 22, "AUTO-UPGRADE // " .. (G.S.autoUpgrade and "ON" or "OFF"), true,
