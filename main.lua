@@ -174,9 +174,16 @@ function love.load(args)
   G.lastInput = love.timer.getTime()
   for _, a in ipairs(args or {}) do if a == "--pace" then G.paceProbe() end end
   for _, a in ipairs(args or {}) do if a == "--zonesim" then G.zoneSim() end end
-  for _, a in ipairs(args or {}) do if a == "--longrun" then G.longRun() elseif a == "--longrun-reboot" then G.longRun(true) end end
+  for _, a in ipairs(args or {}) do if a == "--longrun" then G.longRun() elseif a == "--longrun-reboot" then G.longRun(true) elseif a == "--longrun-save" then G.longRun(true, true) end end
   for _, a in ipairs(args or {}) do if a == "--rescale" then G.rescaleSave() end end
   for _, a in ipairs(args or {}) do
+    if a == "--econdiag" then
+      -- read-only economy breakdown of the real save -> econdiag.txt (quits without saving)
+      local ok, r = pcall(function() G.recalc(); return G.econReport() end)
+      love.filesystem.write("econdiag.txt", tostring(r))
+      selftest = true -- skip the save on quit
+      love.event.quit()
+    end
     if a == "--mapdiag" then
       local ok, r = pcall(function() G.recalc(); return G.mapReport() end)
       love.filesystem.write("mapdiag.txt", tostring(r))
@@ -284,13 +291,20 @@ end
 
 -- Pacing probe: simulates a new player for 30 minutes (no rendering) and writes a timeline.
 -- --longrun: 12 h without ever rebooting, spamming SMART BUY + tech + claims. Shows whether growth ever stalls.
-function G.longRun(reboots)
-  love.filesystem.setIdentity("tower_harvest_longrun")
-  G.selftest = true
-  G.init(true)
+function G.longRun(reboots, fromSave)
+  if fromSave then
+    -- start from a copy of the real save (all permanent multipliers), then write only to the probe folder
+    G.selftest = true
+    G.init(false)
+    love.filesystem.setIdentity("tower_harvest_longrun")
+  else
+    love.filesystem.setIdentity("tower_harvest_longrun")
+    G.selftest = true
+    G.init(true)
+  end
   G.dailyPending = false
   local S = G.S
-  S.stardust = 1e6
+  if not fromSave then S.stardust = 1e6 end
   local out, t, dt = {}, 0, 1
   local boughtWin, lastLog = 0, 0
   local function sample()
@@ -301,7 +315,8 @@ function G.longRun(reboots)
       t / 3600, math.log10(math.max(1, G.getCps())), units, top, boughtWin, S.rank, G.achCount, math.log10(math.max(1, G.globalMult)))
     boughtWin = 0
   end
-  while t < (reboots and 24 or 12) * 3600 do
+  local hours = fromSave and 3 or (reboots and 24 or 12)
+  while t < hours * 3600 do
     t = t + dt
     local u0 = S.unitsBought
     G.smartBuy()
@@ -313,7 +328,7 @@ function G.longRun(reboots)
     boughtWin = boughtWin + (S.unitsBought - u0)
     G.modal = false
     G.update(dt)
-    if reboots and G.satMult() < 0.5 and G.dmGain() >= 1 then
+    if reboots and G.satMult() < 0.5 and G.dmGain() >= math.max(1, S.dmTotal * 0.9) then
       G.doReboot(); G.treeSpendAll()
       out[#out + 1] = string.format("%5.1fh  -- REBOOT -> Core Data %s", t / 3600, H.fmt(S.dmTotal))
       local p = G.gmParts or {}
@@ -323,7 +338,7 @@ function G.longRun(reboots)
     if t - lastLog >= 900 then lastLog = t; sample() end
   end
   out[#out + 1] = string.format("FINAL lifetime energy 1e%.1f  //  cps 1e%.1f", math.log10(math.max(1, S.totalEarned)), math.log10(math.max(1, G.getCps())))
-  love.filesystem.write(reboots and "longrun_reboot.txt" or "longrun.txt", table.concat(out, "\n"))
+  love.filesystem.write(fromSave and "longrun_save.txt" or (reboots and "longrun_reboot.txt" or "longrun.txt"), table.concat(out, "\n"))
   love.event.quit()
 end
 

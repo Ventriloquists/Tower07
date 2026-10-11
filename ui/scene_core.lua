@@ -55,14 +55,15 @@ local function hero()
   local sat = G.satMult()
   local sy = hud and 150 or 134
   if sat < 0.999 then
-    local txt = string.format("REACTOR SATURATION  x%s OUTPUT  //  REBOOT TO RESET", sat >= 0.01 and string.format("%.2f", sat) or H.fmt(sat))
+    local pct = sat * 100
+    local txt = "REACTOR SATURATION  //  OUTPUT AT " .. (pct >= 1 and string.format("%d%%", pct) or string.format("%.2g%%", pct)) .. "  //  REBOOT TO RESET"
     local pulse = 0.6 + 0.4 * math.sin(G.time * 4)
     local tw = Fo.xs:getWidth(txt) + 24
     local hov = H.mouseIn(640 - tw / 2, sy, tw, 18)
     col(C.red, (hov and 0.35 or 0.18) * pulse + 0.05); lg.rectangle("fill", 640 - tw / 2, sy, tw, 18)
     if hud then col(C.red); lg.rectangle("fill", 640 - tw / 2, sy, 3, 18) end
     lg.setFont(Fo.xs); col(C.red); lg.printf(txt, 640 - tw / 2, sy + 3, tw, "center")
-    if hov then H.setTip("REACTOR SATURATION", "This run has outgrown the reactor: a reboot now would more than triple your Core Data, so every further unit pays off less and less. Rebooting resets the saturation and raises the limit.") end
+    if hov then H.setTip("REACTOR SATURATION", "This run has outgrown the reactor: a reboot now would at least double your Core Data. Output falls in proportion to how far past that line you are (twice past = half output), so pushing on stops paying. Rebooting resets it and raises the line.") end
     H.addHit(640 - tw / 2, sy, tw, 18, function() if G.unlocked("nova") then G.tab = "nova"; FX.play("tap", 1.6, 0.4) end end)
     sy = sy + 24
   else

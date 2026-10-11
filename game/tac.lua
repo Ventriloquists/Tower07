@@ -306,7 +306,7 @@ function G.openCrate(k, quiet, sx, sy)
   if c.r >= 6 then S.mythic = S.mythic + 1 end
   if c.r >= 7 then S.prismatic = (S.prismatic or 0) + 1 end
   local lines = {}
-  local e = math.max(50, G.baseCps * L.secs)
+  local e = math.max(50, G.effCps() * L.secs)
   G.gain(e)
   lines[#lines + 1] = "+" .. fmt(e) .. " ENERGY"
   local pa = math.floor(L.parts * F * sal * rnd(0.8, 1.2) * (1 + 0.2 * G.tr("sv_parts")) * 1.3 ^ G.tr("od_salv"))

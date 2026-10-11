@@ -48,7 +48,7 @@ function G.now() return clockBase + (love.timer.getTime() - timerBase) + G.warp 
 -- State
 ----------------------------------------------------------------------
 function G.newState()
-  local s = {stardust = 0, runEarned = 0, totalEarned = 0, clicks = 0, comets = 0, maxCombo = 0,
+  local s = {stardust = 0, runEarned = 0, runTime = 0, totalEarned = 0, clicks = 0, comets = 0, maxCombo = 0,
     upBought = 0, bestCps = 0, gens = {}, ubt = {}, upg = {}, ach = {}, pupg = {}, dm = 0, dmTotal = 0,
     prestiges = 0, playTime = 0, lastSave = os.time(), startTime = os.time(), unitsBought = 0,
     xp = 0, rank = 1, tokens = 0, hydro = 0, parts = 0,
@@ -690,7 +690,7 @@ function G.claimCell(i)
     S.parts = S.parts + p
     text = "SALVAGE // +" .. p .. " parts"
   elseif loot == "CACHE" then
-    local e = math.max(100, G.baseCps * (120 + th * 60))
+    local e = math.max(100, G.effCps() * (120 + th * 60))
     local hy = math.floor((5 + th * 2) * 1.35 ^ (S.zone - 1))
     G.gain(e)
     S.hydro = S.hydro + hy
@@ -816,6 +816,35 @@ function G.recalc()
   end
 end
 
+-- dev: --econdiag. Every factor of the output multiplier, unit by unit, plus the saturation state.
+function G.econReport()
+  local S = G.S
+  local o = {}
+  local function p(k, v) o[#o + 1] = string.format("%-26s %s", k, type(v) == "number" and string.format("%.4g", v) or tostring(v)) end
+  local P = G.gmParts or {}
+  p("lifetime energy", S.totalEarned); p("reboots", S.prestiges); p("core data (bank/total)", S.dm .. " / " .. S.dmTotal)
+  p("logs", G.achCount); p("rank", S.rank); p("zone best", S.zoneBest)
+  p("--- global multiplier", "")
+  p("tech global (gUp)", P.gUp); p("core data bonus", G.cdBonus()); p("logs", P.logs)
+  p("synergy", S.pupg.synergy and (1 + 0.01 * G.achCount) or 1); p("legacy", S.pupg.legacy and 2 or 1); p("echo", S.pupg.echo and 3 or 1)
+  p("tree eco", (1 + 0.25 * G.tr("eco_out")) * 1.25 ^ G.tr("eco_out2") * (G.tr("eco_final") > 0 and 5 or 1) * (1 + 0.5 * G.tr("eco_out3")))
+  p("tree overdrive eco", 1.1 ^ G.tr("od_eco")); p("tree resonance", 1 + 0.01 * G.tr("eco_res") * (G.treeRanks and G.treeRanks() or 0))
+  p("rank", 1 + 0.02 * (S.rank - 1)); p("drones", G.droneMult); p("claimed sectors", 1 + 0.02 * G.claimed)
+  p("artifacts", 1 + 0.05 * S.artifacts); p("zone", 1 + (0.25 + 0.05 * G.tr("map_zone")) * S.zoneBest)
+  p("perk overclock", 1 + 0.10 * G.perk("OVERCLOCK")); p("= GLOBAL", G.globalMult)
+  p("--- units", "")
+  for i, g in ipairs(D.GENS) do
+    if (S.gens[i] or 0) > 0 then
+      o[#o + 1] = string.format("%-18s n=%-6d tech=%.3g milestone=%.3g each=%.3g total=%.3g", g.name, S.gens[i], G.genUp[i], G.milestoneMult(i), G.genEach[i], G.genEach[i] * S.gens[i])
+    end
+  end
+  p("--- output", "")
+  p("base cps", G.baseCps); p("buff mult", G.buffMult("prod")); p("saturation threshold", G.satThreshold()); p("saturation mult", G.satMult())
+  p("final cps", G.getCps()); p("tap value", G.tapValue()); p("auto taps/s", G.autoRate)
+  p("dm potential / gain", G.dmPotential() .. " / " .. G.dmGain())
+  return table.concat(o, "\n")
+end
+
 function G.buffMult(kind)
   local m = 1
   for _, b in ipairs(G.buffs) do if b.kind == kind then m = m * b.mult end end
@@ -826,7 +855,7 @@ function G.hasBuff(name)
   return false
 end
 -- REACTOR SATURATION: once a reboot would at least double your Core Data, output drops the longer the run goes on
--- (x (threshold / lifetime energy) ^ 0.5). Rebooting raises the threshold, so the wall moves with you.
+-- (x threshold / lifetime energy: a hard wall, not a soft curve). Rebooting raises the threshold, so the wall moves with you.
 -- Core Data output bonus: +5% each up to 100 CD, then square-root growth (linear growth made reboots snowball)
 function G.cdBonus()
   local cd = S.dmTotal or 0
@@ -840,9 +869,12 @@ end
 function G.satMult()
   local T = G.satThreshold()
   if S.totalEarned <= T then return 1 end
-  return math.max(1e-6, (T / S.totalEarned) ^ 0.5)
+  return math.max(1e-9, T / S.totalEarned)
 end
 function G.getCps() return G.baseCps * G.buffMult("prod") * G.satMult() end
+-- what the reactor really makes per second (saturation applied, no temporary buffs): every reward that is
+-- "N seconds of production" must use this, or it bypasses the wall
+function G.effCps() return G.baseCps * G.satMult() end
 function G.tapValue() return (G.clickMult + G.getCps() * G.clickCpsPct) * G.buffMult("click") end
 
 function G.gain(x)
@@ -1311,7 +1343,7 @@ function G.newDirective()
   if k == "tap" then d.target = 100 + 20 * Rk
   elseif k == "units" then d.target = 10 + 4 * Rk
   elseif k == "unitType" then d.i = hi; d.target = 5 + math.floor(Rk / 2)
-  elseif k == "energy" then d.target = math.floor(math.max(500, G.baseCps * rnd(120, 400)))
+  elseif k == "energy" then d.target = math.floor(math.max(500, G.effCps() * rnd(120, 400)))
   elseif k == "chain" then d.target = math.min(150, 25 + Rk * 2)
   elseif k == "upgrade" then d.target = love.math.random(2, 4)
   elseif k == "signal" then d.target = love.math.random(1, 2)
@@ -1344,7 +1376,7 @@ function G.claimDirective(i)
   if r.hydro then S.hydro = S.hydro + r.hydro end
   if r.parts then S.parts = S.parts + r.parts end
   if r.tokens then S.tokens = S.tokens + r.tokens end
-  if r.energy then G.gain(math.max(100, G.baseCps * r.energy)) end
+  if r.energy then G.gain(math.max(100, G.effCps() * r.energy)) end
   if r.crate and G.dropCrate then G.dropCrate(G.TX + rnd(-1, 1), G.TY + rnd(-1, 1), r.crate) end
   S.dirDone = S.dirDone + 1
   S.directives[i] = G.newDirective()
@@ -1399,14 +1431,19 @@ function G.dmMult() return 1 + 0.1 * G.tr("eco_cd") end
 -- fourth root: Core Data feeds back into output, so faster-growing roots made reboots snowball
 G.DM_EXP, G.DM_BASE = 1 / 4, 1e6 -- first ~30 Core Data at ~1e12 lifetime energy, same as the old square root
 function G.dmPotential() return math.floor((S.totalEarned / G.DM_BASE) ^ G.DM_EXP * G.dmMult()) end
-function G.dmGain() return math.max(0, G.dmPotential() - S.dmTotal) end
+-- one reboot can at most triple your total Core Data (min 25 for new players), and that cap charges up over the
+-- first 30 minutes of a run: quick back-to-back reboots give little, so reboots cannot cascade in minutes
+G.RUN_CHARGE = 1800
+function G.runCharge() return math.min(1, (S.runTime or 0) / G.RUN_CHARGE) end
+function G.dmCap() return math.max(25, 2 * S.dmTotal * G.runCharge()) end
+function G.dmGain() return math.max(0, math.min(G.dmPotential() - S.dmTotal, G.dmCap())) end
 function G.doReboot()
   if G.meme then G.meme("reboot") end
   local g = G.dmGain()
   if g < 1 then return end
   S.dm, S.dmTotal = S.dm + g, S.dmTotal + g
   S.prestiges = S.prestiges + 1
-  S.stardust, S.runEarned = 0, 0
+  S.stardust, S.runEarned, S.runTime = 0, 0, 0
   for i = 1, #GENS do S.gens[i] = 0 end
   S.upg = {}
   if S.pupg.starter then S.gens[1], S.gens[2] = 10, 5 end
@@ -1586,6 +1623,7 @@ function G.computeOffline()
   local cap = (S.pupg.memory and 86400 or 43200) + 14400 * G.tr("sg_night")
   local rate = (S.pupg.memory and 1 or 0.5) * (1 + 0.25 * G.tr("sg_dream"))
   local gain = G.baseCps * G.satMult() * math.min(elapsed, cap) * rate
+  S.runTime = (S.runTime or 0) + math.min(elapsed, cap) -- offline time charges the run too
   local full = 0
   for i, r in ipairs(S.rigs) do
     if r.on then
@@ -1647,6 +1685,7 @@ function G.update(dt)
   G.time = G.time + dt
   G.sessionTime = G.sessionTime + dt
   S.playTime = S.playTime + dt
+  S.runTime = (S.runTime or 0) + dt
 
   for i = #G.buffs, 1, -1 do
     local b = G.buffs[i]

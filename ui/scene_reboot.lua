@@ -51,8 +51,16 @@ local function prestige()
   local cdNow = G.cdBonus(); local keep = S.dmTotal; S.dmTotal = S.dmTotal + g; local cdNext = G.cdBonus(); S.dmTotal = keep
   H.label("CORE DATA BONUS x" .. fmt(cdNow) .. "  ->  x" .. fmt(cdNext), x + 26, py + 92, can and C.white or C.dim)
   local nextAt = (((G.dmPotential() + 1) / G.dmMult()) ^ (1 / G.DM_EXP)) * G.DM_BASE
-  H.label("NEXT CORE DATA AT " .. fmt(nextAt) .. " ENERGY", x + 14, py + 124, C.dim)
-  H.bar(x + 14, py + 140, w - 28, 4, S.totalEarned / nextAt, C.red)
+  local capped = G.dmPotential() - S.dmTotal > g
+  local charge = G.runCharge()
+  if capped and charge < 1 then
+    -- the cap is still charging: show how long until this run is worth its full reboot
+    H.label("RUN CHARGE " .. math.floor(charge * 100) .. "%  //  FULL VALUE IN " .. H.clock(G.RUN_CHARGE - S.runTime):sub(4), x + 14, py + 124, C.orange)
+    H.bar(x + 14, py + 140, w - 28, 4, charge, C.orange)
+  else
+    H.label(capped and "CAPPED  //  MAX x3 CORE DATA PER REBOOT" or ("NEXT CORE DATA AT " .. fmt(nextAt) .. " ENERGY"), x + 14, py + 124, capped and C.orange or C.dim)
+    H.bar(x + 14, py + 140, w - 28, 4, capped and 1 or S.totalEarned / nextAt, capped and C.orange or C.red)
+  end
   -- resets / keeps
   local ly = py + 158
   H.label("RESETS", x + 14, ly, C.red)

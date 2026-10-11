@@ -164,7 +164,7 @@ return {
   {cat = "PROGRESS", name = "Daily supply", alias = {"daily supply", "shift streak", "streak"},
     desc = "Free reward once per day. Logging in on consecutive days climbs a 7-day ladder; missing a day resets it."},
   {cat = "PROGRESS", name = "Reactor saturation", alias = {"reactor saturation", "saturation"},
-    desc = "Once a reboot would at least triple your Core Data, output drops the longer the run continues. Rebooting resets it and raises the limit."},
+    desc = "Once a reboot would at least double your Core Data, output falls in proportion to how far you are past that line: twice past it = half output. Rebooting resets it and raises the line. One reboot can at most triple your Core Data, and that cap charges up over the first 30 minutes of a run."},
   {cat = "PROGRESS", name = "Reboot", alias = {"reboot", "reboots"},
     desc = "Prestige: reset energy, units, tech and the sector map for Core Data. Drones, rank, perks and logs stay."},
   {cat = "PROGRESS", name = "Core Data", alias = {"core data", "cd"},
