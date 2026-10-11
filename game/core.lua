@@ -794,12 +794,13 @@ function G.recalc()
   for i = 1, G.MW * G.MH do if S.map.cells[i] == 2 then cl = cl + 1 end end
   G.claimed = math.max(0, cl - 1)
 
-  local gm = gUp * (1 + 0.05 * S.dmTotal) * (1 + 0.01 * G.achCount) * (1 + perlog * G.achCount)
+  local gm = gUp * G.cdBonus() * (1 + 0.01 * G.achCount) * (1 + perlog * G.achCount)
+  G.gmParts = {gUp = gUp, cd = G.cdBonus(), logs = (1 + 0.01 * G.achCount) * (1 + perlog * G.achCount), rank = 1 + 0.02 * (S.rank - 1), zone = 1 + 0.25 * S.zoneBest}
   if S.pupg.synergy then gm = gm * (1 + 0.01 * G.achCount) end
-  if S.pupg.legacy then gm = gm * 3 end
-  if S.pupg.echo then gm = gm * 10 end
-  gm = gm * (1 + 0.25 * G.tr("eco_out")) * 1.5 ^ G.tr("eco_out2") * (G.tr("eco_final") > 0 and 100 or 1)
-  gm = gm * (1 + 0.5 * G.tr("eco_out3")) * 1.25 ^ G.tr("od_eco") * (1 + 0.01 * G.tr("eco_res") * (G.treeRanks and G.treeRanks() or 0))
+  if S.pupg.legacy then gm = gm * 2 end
+  if S.pupg.echo then gm = gm * 3 end
+  gm = gm * (1 + 0.25 * G.tr("eco_out")) * 1.25 ^ G.tr("eco_out2") * (G.tr("eco_final") > 0 and 5 or 1)
+  gm = gm * (1 + 0.5 * G.tr("eco_out3")) * 1.1 ^ G.tr("od_eco") * (1 + 0.01 * G.tr("eco_res") * (G.treeRanks and G.treeRanks() or 0))
   gm = gm * (1 + 0.02 * (S.rank - 1)) * G.droneMult * (1 + 0.02 * G.claimed) * (1 + 0.05 * S.artifacts)
     * (1 + (0.25 + 0.05 * G.tr("map_zone")) * S.zoneBest)
   if S.pupg.fingers then clickMult = clickMult * 3 end
@@ -843,7 +844,24 @@ function G.hasBuff(name)
   for _, b in ipairs(G.buffs) do if b.name == name then return true end end
   return false
 end
-function G.getCps() return G.baseCps * G.buffMult("prod") end
+-- REACTOR SATURATION: once a reboot would at least double your Core Data, output drops the longer the run goes on
+-- (x (threshold / lifetime energy) ^ 0.5). Rebooting raises the threshold, so the wall moves with you.
+-- Core Data output bonus: +5% each up to 100 CD, then square-root growth (linear growth made reboots snowball)
+function G.cdBonus()
+  local cd = S.dmTotal or 0
+  if cd <= 100 then return 1 + 0.05 * cd end
+  return 6 * (cd / 100) ^ 0.5
+end
+function G.satThreshold()
+  local cd = (S.dmTotal or 0) + 10
+  return (G.DM_BASE or 1e6) * (2 * cd / G.dmMult()) ^ (1 / G.DM_EXP)
+end
+function G.satMult()
+  local T = G.satThreshold()
+  if S.totalEarned <= T then return 1 end
+  return math.max(1e-6, (T / S.totalEarned) ^ 0.5)
+end
+function G.getCps() return G.baseCps * G.buffMult("prod") * G.satMult() end
 function G.tapValue() return (G.clickMult + G.getCps() * G.clickCpsPct) * G.buffMult("click") end
 
 function G.gain(x)
@@ -1397,7 +1415,9 @@ end
 -- Reboot
 ----------------------------------------------------------------------
 function G.dmMult() return 1 + 0.1 * G.tr("eco_cd") end
-function G.dmPotential() return math.floor(math.sqrt(S.totalEarned / 1e9) * G.dmMult()) end
+-- fourth root: Core Data feeds back into output, so faster-growing roots made reboots snowball
+G.DM_EXP, G.DM_BASE = 1 / 4, 1e6 -- first ~30 Core Data at ~1e12 lifetime energy, same as the old square root
+function G.dmPotential() return math.floor((S.totalEarned / G.DM_BASE) ^ G.DM_EXP * G.dmMult()) end
 function G.dmGain() return math.max(0, G.dmPotential() - S.dmTotal) end
 function G.doReboot()
   if G.meme then G.meme("reboot") end
@@ -1584,7 +1604,7 @@ function G.computeOffline()
   if elapsed <= 30 then return end
   local cap = (S.pupg.memory and 86400 or 43200) + 14400 * G.tr("sg_night")
   local rate = (S.pupg.memory and 1 or 0.5) * (1 + 0.25 * G.tr("sg_dream"))
-  local gain = G.baseCps * math.min(elapsed, cap) * rate
+  local gain = G.baseCps * G.satMult() * math.min(elapsed, cap) * rate
   local full = 0
   for i, r in ipairs(S.rigs) do
     if r.on then

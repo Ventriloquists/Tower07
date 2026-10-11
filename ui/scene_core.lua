@@ -46,6 +46,18 @@ local function hero()
   local boosted = G.buffMult("prod") > 1
   lg.setFont(Fo.m); col(boosted and C.orange or C.line)
   lg.printf("+" .. fmt(G.getCps()) .. " ENERGY / SEC", 340, 114, 600, "center")
+  -- reactor saturation warning: output is being throttled until you reboot
+  local sat = G.satMult()
+  if sat < 0.999 then
+    local txt = string.format("REACTOR SATURATION  x%s OUTPUT  //  REBOOT TO RESET", sat >= 0.01 and string.format("%.2f", sat) or H.fmt(sat))
+    local pulse = 0.6 + 0.4 * math.sin(G.time * 4)
+    local tw = Fo.xs:getWidth(txt) + 24
+    local hov = H.mouseIn(640 - tw / 2, 134, tw, 18)
+    col(C.red, (hov and 0.35 or 0.18) * pulse + 0.05); lg.rectangle("fill", 640 - tw / 2, 134, tw, 18)
+    lg.setFont(Fo.xs); col(C.red); lg.printf(txt, 640 - tw / 2, 137, tw, "center")
+    if hov then H.setTip("REACTOR SATURATION", "This run has outgrown the reactor: a reboot now would more than triple your Core Data, so every further unit pays off less and less. Rebooting resets the saturation and raises the limit.") end
+    H.addHit(640 - tw / 2, 134, tw, 18, function() if G.unlocked("nova") then G.tab = "nova"; FX.play("tap", 1.6, 0.4) end end)
+  end
   -- buff chips
   local n = #G.buffs
   local cw = 156
@@ -230,8 +242,15 @@ local function quickBuild()
   end
   local anyCan = false
   for i = 1, #D.GENS do if G.revealedGen(i) and S.stardust >= G.genCost(i, 1) then anyCan = true break end end
-  H.button(bx, y + 30, 240, h - 30, "SMART BUY", anyCan, G.smartBuy, C.line, Fo.l, nil, true)
-  H.label("best value units", bx + 74, y + h - 18, anyCan and C.bg or C.faint)
+  local autoOk, need = G.hasArchive("autoUnits")
+  H.button(bx, y + 30, 176, h - 30, "SMART BUY", anyCan, G.smartBuy, C.line, Fo.l, nil, true)
+  H.label("best value units", bx + 42, y + h - 18, anyCan and C.bg or C.faint)
+  local on = S.autoUnits and autoOk
+  H.button(bx + 182, y + 30, 58, h - 30, autoOk and (on and "AUTO ON" or "AUTO") or (need .. " LOGS"), autoOk,
+    function() S.autoUnits = not S.autoUnits; FX.play("tick", 1.2) end, on and C.orange or C.dim, Fo.xs, nil, on)
+  if H.mouseIn(bx + 182, y + 30, 58, h - 30) then
+    H.setTip("AUTO-ACQUIRE", autoOk and "Keeps buying the best-value units for you, so you never have to spam SMART BUY." or ("Unlocks at " .. need .. " log entries."))
+  end
 end
 
 function Sc.draw()

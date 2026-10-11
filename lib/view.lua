@@ -135,9 +135,31 @@ function lg.printf(t, x, y, w, align)
 end
 -- V.round: corner radius for panels; V.shadow: soft drop shadow under opaque panels
 V.round, V.shadow = 0, false
+-- V.liquid: macOS 26 "Liquid Glass" panels {alpha, sheen, edge, dark}: translucent body, top sheen, specular edge, deep soft shadow
+V.liquid = nil
+function V.glassRect(x, y, w, h, r, cr, cg, cb)
+  local L = V.liquid or {alpha = 0.6, sheen = 0.1, edge = 0.5}
+  G.setColor(0, 0, 0, L.dark and 0.18 or 0.06); G.rectangle("fill", x - 3, y + 4, w + 6, h + 8, r + 4, r + 4)
+  G.setColor(0, 0, 0, L.dark and 0.14 or 0.05); G.rectangle("fill", x - 1, y + 1, w + 2, h + 3, r + 1, r + 1)
+  G.setColor(cr, cg, cb, L.alpha); G.rectangle("fill", x, y, w, h, r, r)
+  G.setColor(1, 1, 1, L.sheen); G.rectangle("fill", x + 1, y + 1, w - 2, math.min(h * 0.42, 46), r, r)
+  local lw = G.getLineWidth()
+  G.setLineWidth(1 / V.s)
+  G.setColor(1, 1, 1, L.edge); G.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1, r, r)
+  G.setColor(0, 0, 0, L.dark and 0.35 or 0.06); G.rectangle("line", x - 0.5, y - 0.5, w + 1, h + 1, r + 0.5, r + 0.5)
+  G.setLineWidth(lw)
+end
 function lg.rectangle(mode, x, y, w, h, rx, ry, seg)
   if V.round > 0 and not rx and w >= 40 and h >= 24 then
     local r = math.min(V.round, h / 2, w / 2)
+    if V.liquid and mode == "fill" and w >= 60 and h >= 30 then
+      local cr, cg, cb, ca = G.getColor()
+      if ca >= 0.85 then
+        V.glassRect(x, y, w, h, r, cr, cg, cb)
+        G.setColor(cr, cg, cb, ca)
+        return
+      end
+    end
     if V.shadow and mode == "fill" and w >= 60 and h >= 30 then
       local cr, cg, cb, ca = G.getColor()
       if ca >= 0.85 then

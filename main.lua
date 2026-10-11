@@ -163,6 +163,7 @@ function love.load(args)
   G.lastInput = love.timer.getTime()
   for _, a in ipairs(args or {}) do if a == "--pace" then G.paceProbe() end end
   for _, a in ipairs(args or {}) do if a == "--zonesim" then G.zoneSim() end end
+  for _, a in ipairs(args or {}) do if a == "--longrun" then G.longRun() elseif a == "--longrun-reboot" then G.longRun(true) end end
   for _, a in ipairs(args or {}) do if a == "--rescale" then G.rescaleSave() end end
   for _, a in ipairs(args or {}) do
     if a == "--mapdiag" then
@@ -271,6 +272,50 @@ function G.zoneSim()
 end
 
 -- Pacing probe: simulates a new player for 30 minutes (no rendering) and writes a timeline.
+-- --longrun: 12 h without ever rebooting, spamming SMART BUY + tech + claims. Shows whether growth ever stalls.
+function G.longRun(reboots)
+  love.filesystem.setIdentity("tower_harvest_longrun")
+  G.selftest = true
+  G.init(true)
+  G.dailyPending = false
+  local S = G.S
+  S.stardust = 1e6
+  local out, t, dt = {}, 0, 1
+  local boughtWin, lastLog = 0, 0
+  local function sample()
+    local units, top = 0, 0
+    for i = 1, #D.GENS do units = units + S.gens[i]; if S.gens[i] > 0 then top = i end end
+    local mult = {}
+    out[#out + 1] = string.format("%5.1fh  cps 1e%-6.1f units %6d  top gen %2d  bought/15m %6d  rank %5d  logs %3d  globalMult 1e%.1f",
+      t / 3600, math.log10(math.max(1, G.getCps())), units, top, boughtWin, S.rank, G.achCount, math.log10(math.max(1, G.globalMult)))
+    boughtWin = 0
+  end
+  while t < (reboots and 24 or 12) * 3600 do
+    t = t + dt
+    local u0 = S.unitsBought
+    G.smartBuy()
+    for _, u in ipairs(G.availableUpgrades()) do if S.stardust >= u.cost then G.buyUpgrade(u, nil, nil, true) end end
+    if G.unclaimedLogs() > 0 then G.claimAllLogs() end
+    if S.perkPoints > 0 then G.openPerkChoice(); if G.perkChoice then G.perkChoice.t = 5; G.pickPerk(1) end end
+    G.perkChoice = nil
+    if G.passReady() > 0 then G.claimAllPass() end
+    boughtWin = boughtWin + (S.unitsBought - u0)
+    G.modal = false
+    G.update(dt)
+    if reboots and G.satMult() < 0.5 and G.dmGain() >= 1 then
+      G.doReboot(); G.treeSpendAll()
+      out[#out + 1] = string.format("%5.1fh  -- REBOOT -> Core Data %s", t / 3600, H.fmt(S.dmTotal))
+      local p = G.gmParts or {}
+      out[#out + 1] = string.format("        gUp 1e%.1f  cd 1e%.1f  logs 1e%.1f  rank 1e%.1f  zone %.1f  total 1e%.1f  units %d  rank %d  logs %d",
+        math.log10(p.gUp or 1), math.log10(p.cd or 1), math.log10(p.logs or 1), math.log10(p.rank or 1), p.zone or 1, math.log10(G.globalMult), (function() local u = 0 for i = 1, #D.GENS do u = u + S.gens[i] end return u end)(), S.rank, G.achCount)
+    end
+    if t - lastLog >= 900 then lastLog = t; sample() end
+  end
+  out[#out + 1] = string.format("FINAL lifetime energy 1e%.1f  //  cps 1e%.1f", math.log10(math.max(1, S.totalEarned)), math.log10(math.max(1, G.getCps())))
+  love.filesystem.write(reboots and "longrun_reboot.txt" or "longrun.txt", table.concat(out, "\n"))
+  love.event.quit()
+end
+
 function G.paceProbe()
   love.filesystem.setIdentity("tower_harvest_pace")
   G.selftest = true
@@ -620,7 +665,7 @@ local function runSelftest()
     S.dm = 1e40
     G.treeSpendAll()
     local od = G.tr("od_eco") + G.tr("od_core") + G.tr("od_fleet") + G.tr("od_map") + G.tr("od_salv") + G.tr("od_sig")
-    ok = ok and S.dm < 1e38 and od > 100
+    ok = ok and S.dm < 5e39 and od > 100 -- a single next rank can cost up to ~1/2 the bank with x3 steps
     G.spendInfo = string.format("spent-left=%s od=%d", H.fmt(S.dm), od)
     G.selftestTree = ok and ("tree-ok " .. G.spendInfo) or string.format("tree-FAIL eco=%d range=%d turret=%d adj=%s locked=%s gm=%.3g/%.3g", G.tr("eco_out"), G.tr("map_range"), G.tr("turret"), tostring(G.adjClaimed(i2)), tostring(locked), G.globalMult, out0)
     G.tab = "nova"; G.treeSel = "od_map"; G.treeView = {x = 0, y = -330, z = 0.9}
@@ -683,7 +728,7 @@ local function runSelftest()
   if f == 755 then Set.v.theme = "win11"; applySettings("theme"); G.tab = "hangar" end
   if f == 757 then shot("theme_win11_hangar") end
   if f == 758 then Set.v.theme = "macdark"; applySettings("theme"); G.tab = "map" end
-  if f == 759 then shot("theme_macdark_map"); Set.v.theme = "oblivion"; applySettings("theme") end
+  if f == 759 then shot("theme_macdark_map") end
   -- social + silly themes
   if f == 760 then G.rankBanner, G._banner, G.bannerQueue = nil, nil, {}; Set.v.theme = "youtube"; applySettings("theme"); G.tab = "core" end
   if f == 762 then shot("theme_youtube_core") end

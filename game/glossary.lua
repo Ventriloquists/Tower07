@@ -163,8 +163,10 @@ return {
     desc = "Endless reward ladder. All XP also fills it (SXP). Big crates every 10th and 25th tier."},
   {cat = "PROGRESS", name = "Daily supply", alias = {"daily supply", "shift streak", "streak"},
     desc = "Free reward once per day. Logging in on consecutive days climbs a 7-day ladder; missing a day resets it."},
+  {cat = "PROGRESS", name = "Reactor saturation", alias = {"reactor saturation", "saturation"},
+    desc = "Once a reboot would at least triple your Core Data, output drops the longer the run continues. Rebooting resets it and raises the limit."},
   {cat = "PROGRESS", name = "Reboot", alias = {"reboot", "reboots"},
     desc = "Prestige: reset energy, units, tech and the sector map for Core Data. Drones, rank, perks and logs stay."},
   {cat = "PROGRESS", name = "Core Data", alias = {"core data", "cd"},
-    desc = "Prestige currency from reboots. Each point gives +5% output forever. Spend it in the protocol tree."},
+    desc = "Prestige currency from reboots (fourth root of lifetime energy). +5% output each up to 100 Core Data, then square-root growth. Spend it in the protocol tree."},
 }

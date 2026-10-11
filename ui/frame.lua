@@ -30,7 +30,70 @@ end
 ----------------------------------------------------------------------
 -- background grid + flying signal
 ----------------------------------------------------------------------
+-- macOS Tahoe style wallpaper: soft vertical gradient with slow, blurred colour blobs behind the glass
+local wallMesh, wallKey
+local WALL = {
+  light = {top = {0.55, 0.76, 0.98}, bottom = {0.86, 0.90, 0.99},
+    blobs = {{0.30, 0.62, 1.00}, {0.62, 0.50, 1.00}, {0.25, 0.85, 0.88}, {1.00, 0.62, 0.78}, {0.45, 0.80, 1.00}}},
+  dark = {top = {0.04, 0.06, 0.16}, bottom = {0.09, 0.05, 0.17},
+    blobs = {{0.16, 0.28, 0.85}, {0.48, 0.18, 0.72}, {0.08, 0.48, 0.62}, {0.70, 0.18, 0.42}, {0.20, 0.40, 0.95}}},
+}
+local function wallpaper(kind)
+  local w = WALL[kind] or WALL.light
+  local x0, y0, x1, y1 = V.extents()
+  local key = kind .. x0 .. y0 .. x1 .. y1
+  if wallKey ~= key then
+    wallMesh = love.graphics.newMesh({
+      {x0, y0, 0, 0, w.top[1], w.top[2], w.top[3], 1}, {x1, y0, 1, 0, w.top[1], w.top[2], w.top[3], 1},
+      {x1, y1, 1, 1, w.bottom[1], w.bottom[2], w.bottom[3], 1}, {x0, y1, 0, 1, w.bottom[1], w.bottom[2], w.bottom[3], 1},
+    }, "fan", "static")
+    wallKey = key
+  end
+  love.graphics.setColor(1, 1, 1, 1); love.graphics.draw(wallMesh)
+  local t = love.timer.getTime() * 0.05
+  lg.setBlendMode(kind == "dark" and "add" or "alpha")
+  for k, c in ipairs(w.blobs) do
+    local bx = 640 + math.cos(t * (0.6 + k * 0.17) + k * 1.9) * 520
+    local by = 380 + math.sin(t * (0.5 + k * 0.13) + k * 2.7) * 260
+    local r = 260 + 60 * math.sin(t + k)
+    for i = 1, 10 do -- stacked soft discs fake a heavy blur
+      lg.setColor(c[1], c[2], c[3], kind == "dark" and 0.035 or 0.05)
+      lg.circle("fill", bx, by, r * (1 - i * 0.08), 48)
+    end
+  end
+  lg.setBlendMode("alpha")
+end
+
+-- macOS notifications: the newest messages slide in as glass cards top right (replaces the comms ticker)
+function F.macNotifications()
+  local Fo = H.fonts
+  local _, _, x1 = V.extents()
+  local shown = 0
+  for _, t in ipairs(FX.toasts) do
+    if t.life < 4 and not (Set.v.ticker == "important" and t.low) then
+      shown = shown + 1
+      if shown > 2 then break end
+      local w, h = 340, 64
+      local slide = math.min(1, t.life / 0.3)
+      local fade = t.life > 3.4 and math.max(0, (4 - t.life) / 0.6) or 1
+      local x = x1 - w - 14 + (1 - slide) ^ 3 * (w + 30)
+      local y = 58 + (shown - 1) * (h + 8)
+      lg.push("all")
+      V.glassRect(x, y, w, h, 18, C.panel[1], C.panel[2], C.panel[3])
+      -- app icon
+      lg.setColor(t.c[1], t.c[2], t.c[3], fade); lg.rectangle("fill", x + 12, y + 14, 36, 36, 9, 9)
+      lg.setColor(1, 1, 1, 0.25 * fade); lg.rectangle("fill", x + 12, y + 14, 36, 16, 9, 9)
+      I.draw("event", x + 30, y + 32, 7, {1, 1, 1})
+      lg.setFont(Fo.s); col(C.white, fade); lg.print(H.fit(Fo.s, t.title, w - 110), x + 58, y + 12)
+      lg.setFont(Fo.xs); col(C.dim, fade); lg.print(H.fit(Fo.xs, t.text, w - 72), x + 58, y + 36)
+      col(C.dim, 0.8 * fade); lg.printf("now", x, y + 13, w - 14, "right")
+      lg.pop()
+    end
+  end
+end
+
 function F.background()
+  if H.wallpaper then return wallpaper(H.wallpaper) end
   if H.style then return end -- desktop-app themes: clean background
   local x0, y0, x1, y1 = V.extents()
   col(C.faint, 0.16)
@@ -115,8 +178,13 @@ function F.topBar()
   local S = G.S
   local Fo = H.fonts
   local x0, _, x1 = V.extents()
-  col(C.bg, 0.97); lg.rectangle("fill", x0, 0, x1 - x0, F.TOP)
-  col(C.line, 0.45); lg.line(x0, F.TOP, x1, F.TOP)
+  if H.wallpaper then
+    -- floating glass toolbar
+    V.glassRect(x0 + 4, 3, x1 - x0 - 8, F.TOP - 6, (F.TOP - 6) / 2, C.panel[1], C.panel[2], C.panel[3])
+  else
+    col(C.bg, 0.97); lg.rectangle("fill", x0, 0, x1 - x0, F.TOP)
+    col(C.line, 0.45); lg.line(x0, F.TOP, x1, F.TOP)
+  end
 
   -- profile: rank badge with XP ring (mac themes make room for the traffic lights)
   local mac = H.style == "mac"
@@ -172,7 +240,7 @@ function F.topBar()
   pill(x, 8, 96, 36, "token", "TOKENS", tostring(S.tokens), S.tokens > 0 and C.orange or C.dim, nil,
     "FAB TOKENS", "Free drone fabrications."); x = x + 104
   pill(x, 8, 118, 36, "cd", "CORE DATA", fmt(S.dm), C.red, nil,
-    "CORE DATA", "Prestige currency. Each point: +5% output forever. Spend in the protocol tree.")
+    "CORE DATA", "Prestige currency. Boosts all output (+5% each up to 100, then slower). Spend in the protocol tree.")
 
   -- event pill
   local ex, ew = 996, 182
@@ -247,8 +315,7 @@ function F.macDock()
   local dx, dy = 640 - dw / 2, y + 8
   local mx, my = V.mouse()
   local inDock = my >= dy - 30 and my <= y + 64 and mx >= dx - 30 and mx <= dx + dw + 30 and not G.modal
-  col(C.panel, 0.75); lg.rectangle("fill", dx, dy, dw, 54, 18, 18)
-  col(C.dim, 0.35); lg.rectangle("line", dx + 0.5, dy + 0.5, dw - 1, 53, 18, 18)
+  V.glassRect(dx, dy, dw, 54, 22, C.panel[1], C.panel[2], C.panel[3])
   local hovered
   for k, s in ipairs(F.SCENES) do
     local key = s[1]
@@ -343,6 +410,7 @@ end
 -- comms ticker: a single strip above the dock (never covers content)
 F.TICKER = 636
 function F.toasts()
+  if H.style == "mac" then return F.macNotifications() end
   local Fo = H.fonts
   local x0, _, x1 = V.extents()
   local y, h = F.TICKER, F.DOCK - F.TICKER

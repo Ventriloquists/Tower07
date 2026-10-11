@@ -40,7 +40,7 @@ local function prestige()
   lg.setFont(Fo.m); col(C.red); lg.print("REBOOT PROTOCOL", x + 14, y + 6)
   H.label("CORE DATA IN BANK", x + 14, y + 40, C.dim)
   lg.setFont(Fo.xl); col(C.white); lg.print(fmt(S.dm), x + 14, y + 52)
-  H.label("LIFETIME " .. fmt(S.dmTotal) .. "  //  +" .. fmt(S.dmTotal * 5) .. "% OUTPUT", x + 14, y + 94, C.dim)
+  H.label("LIFETIME " .. fmt(S.dmTotal) .. "  //  OUTPUT x" .. fmt(G.cdBonus()), x + 14, y + 94, C.dim)
   -- the big preview
   local py = y + 116
   col(C.red, can and 0.12 or 0.04); lg.rectangle("fill", x + 14, py, w - 28, 112)
@@ -48,8 +48,9 @@ local function prestige()
   H.label("REBOOT NOW FOR", x + 26, py + 8, C.dim)
   lg.setFont(Fo.huge); col(can and C.orange or C.faint); lg.printf("+" .. fmt(g), x, py + 20, w, "center")
   H.label("CORE DATA" .. (G.dmMult() > 1 and string.format("  (x%.1f DATA COMPRESSION)", G.dmMult()) or ""), x + 26, py + 76, can and C.orange or C.faint)
-  H.label("OUTPUT +" .. fmt(S.dmTotal * 5) .. "%  ->  +" .. fmt((S.dmTotal + g) * 5) .. "%", x + 26, py + 92, can and C.white or C.dim)
-  local nextAt = (((G.dmPotential() + 1) / G.dmMult()) ^ 2) * 1e9
+  local cdNow = G.cdBonus(); local keep = S.dmTotal; S.dmTotal = S.dmTotal + g; local cdNext = G.cdBonus(); S.dmTotal = keep
+  H.label("CORE DATA BONUS x" .. fmt(cdNow) .. "  ->  x" .. fmt(cdNext), x + 26, py + 92, can and C.white or C.dim)
+  local nextAt = (((G.dmPotential() + 1) / G.dmMult()) ^ (1 / G.DM_EXP)) * G.DM_BASE
   H.label("NEXT CORE DATA AT " .. fmt(nextAt) .. " ENERGY", x + 14, py + 124, C.dim)
   H.bar(x + 14, py + 140, w - 28, 4, S.totalEarned / nextAt, C.red)
   -- resets / keeps

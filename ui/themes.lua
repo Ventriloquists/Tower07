@@ -107,16 +107,18 @@ T.LIST = {
     dim = {0.55, 0.67, 0.06}, faint = {0.19, 0.38, 0.19}, red = {0.80, 0.86, 0.45}, orange = {0.70, 0.80, 0.30},
     teal = {0.19, 0.38, 0.19}, sea = {0.10, 0.28, 0.10}, gold = {0.85, 0.92, 0.55}}},
   ---------------------------------------------------------------- desktop apps (rounded UI, system font)
-  {id = "macos", name = "macOS", desc = "Courage. Rounded corners. Traffic lights top left.", style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, c = {
+  {id = "macos", name = "macOS TAHOE", desc = "Liquid Glass. Floating toolbar, glass Dock, notifications.", style = "mac", font = "SegUIVar.ttf", round = 18, titleCase = true,
+    liquid = {alpha = 0.55, sheen = 0.14, edge = 0.75}, wallpaper = "light", c = {
     bg = {0.925, 0.925, 0.93}, panel = {1, 1, 1}, line = {0.00, 0.478, 1.00}, white = {0.114, 0.114, 0.122},
     dim = {0.525, 0.525, 0.545}, faint = {0.824, 0.824, 0.843}, red = {1.00, 0.231, 0.188}, orange = {1.00, 0.584, 0.00},
     teal = {0.62, 0.84, 0.98}, sea = {0.86, 0.92, 0.98}, gold = {1.00, 0.80, 0.00}}},
-  {id = "macdark", name = "macOS DARK", desc = "Dark mode, but expensive.", style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, c = {
+  {id = "macdark", name = "macOS TAHOE DARK", desc = "Liquid Glass after dark. Still expensive.", style = "mac", font = "SegUIVar.ttf", round = 18, titleCase = true,
+    liquid = {alpha = 0.55, sheen = 0.07, edge = 0.25, dark = true}, wallpaper = "dark", c = {
     bg = {0.118, 0.118, 0.118}, panel = {0.173, 0.173, 0.18}, line = {0.039, 0.518, 1.00}, white = {0.96, 0.96, 0.97},
     dim = {0.596, 0.596, 0.616}, faint = {0.227, 0.227, 0.235}, red = {1.00, 0.271, 0.227}, orange = {1.00, 0.624, 0.039},
     teal = {0.18, 0.42, 0.58}, sea = {0.11, 0.11, 0.118}, gold = {1.00, 0.839, 0.039}}},
   {id = "macglass", name = "macOS GLASS", desc = "See-through window: your desktop shows behind the HUD (Windows). [F9 escapes]",
-    style = "mac", font = "segoeui.ttf", round = 10, shadow = true, titleCase = true, glass = 0.94, c = {
+    style = "mac", font = "SegUIVar.ttf", round = 18, shadow = true, titleCase = true, glass = 0.94, c = {
     bg = {12 / 255, 12 / 255, 16 / 255}, panel = {0.15, 0.15, 0.17}, line = {0.35, 0.68, 1.00}, white = {1, 1, 1},
     dim = {0.78, 0.78, 0.82}, faint = {0.32, 0.32, 0.36}, red = {1.00, 0.33, 0.30}, orange = {1.00, 0.66, 0.12},
     teal = {0.20, 0.42, 0.62}, sea = {0.16, 0.18, 0.22}, gold = {1.00, 0.86, 0.20}}},
@@ -459,6 +461,9 @@ function T.apply(id)
   require("game.fx").soundPack = t.cursed and "stupid" or nil
   V.setFace(t.font)
   V.round, V.shadow = t.round or 0, t.shadow == true
+  V.liquid = t.liquid
+  H.wallpaper = t.wallpaper
+  H.macDark = t.liquid and t.liquid.dark or false
   V.caseFn = t.titleCase and titleCase or nil
   if t.glass then Glass.set(true, t.c.bg, t.glass) elseif Glass.on then Glass.set(false) end
   for k, v in pairs(t.c) do
