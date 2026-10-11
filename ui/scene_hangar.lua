@@ -6,6 +6,7 @@ local G = require "game.core"
 local D = require "game.data"
 local I = require "ui.icons"
 local lg = V.lg
+local Vault = require "ui.vault"
 local C, col, fmt, clamp = H.C, H.col, H.fmt, H.clamp
 local TAU = math.pi * 2
 local Sc = {}
@@ -333,6 +334,7 @@ local function cardAt(x, y)
   end
 end
 function Sc.press(x, y)
+  if G.vaultOpen then return end
   local r = cardAt(x, y)
   if r then G.drag = {id = r.id, sx = x, sy = y, active = false} end
 end
@@ -344,6 +346,7 @@ function Sc.update()
   if not g.active and (math.abs(mx - g.sx) > 8 or math.abs(my - g.sy) > 8) then g.active = true; FX.play("tick", 0.9) end
 end
 function Sc.release(x, y)
+  if G.vaultOpen then G.drag = nil return end
   local g = G.drag
   G.drag = nil
   if not g or not g.active then return end
@@ -373,6 +376,13 @@ end
 function Sc.draw()
   local Fo = H.fonts
   lg.setFont(Fo.d2); col(C.white); lg.print("HANGAR", 24, 58)
+  -- one station, two views: the fleet and the module vault
+  if G.unlocked("vault") then
+    H.segmented(140, 58, 190, 22, {"FLEET", "VAULT  //  " .. #G.S.modules}, G.vaultOpen and 2 or 1, function(k)
+      if k == 2 and not G.vaultOpen then G.openVault() elseif k == 1 and G.vaultOpen then G.vaultOpen = false; FX.play("tick", 1.2) end
+    end, "hangarview")
+  end
+  if G.vaultOpen then Vault.draw() return end
   H.button(360, 56, 230, 22, "AUTO-FUSE // " .. G.autoFuseLabel(), true, G.cycleAutoFuse,
     (G.S.autoFuse or 0) > 0 and C.gold or C.dim, Fo.xs)
   H.button(600, 56, 200, 22, "AUTO-UPGRADE // " .. (G.S.autoUpgrade and "ON" or "OFF"), true,

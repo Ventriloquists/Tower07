@@ -298,6 +298,20 @@ function H.brackets(x, y, w, h, l, c, a)
   lg.line(x + w - l, y + h, x + w, y + h, x + w, y + h - l)
 end
 
+-- accent edge on the left of a panel: starts below the cut corner and traces the diagonal,
+-- so it follows the silhouette instead of painting over it (colour must be set by the caller)
+function H.leftEdge(x, y, w, h, t)
+  t = t or 3
+  local k = V.cutFor(w, h)
+  lg.rectangle("fill", x, y + k, t, h - k)
+  if k > 0 then
+    local lw = lg.getLineWidth()
+    lg.setLineWidth(1)
+    lg.line(x + 0.5, y + k, x + k, y + 0.5)
+    lg.setLineWidth(lw / V.lw)
+  end
+end
+
 -- focus lock-on: four corner ticks that close in on the hovered element (t = 0..1)
 function H.focusRing(x, y, w, h, c, t)
   if t <= 0.01 then return end

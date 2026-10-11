@@ -32,17 +32,10 @@ local function units()
   local x, w = 24, 640
   lg.setFont(Fo.d2); col(C.white); lg.print("UNITS", x, 58)
   H.label(H.fit(Fo.xs, "OUTPUT x" .. fmt(G.globalMult) .. "  //  +" .. fmt(G.getCps()) .. "/S", 216), x + 84, 70, C.dim)
-  for k, m in ipairs(G.BUYMODES) do
-    -- right-aligned so the last button ends 12px before the AUTO toggle
-    local sx = x + w - 96 - 12 - #G.BUYMODES * 56 + 4 + (k - 1) * 56
-    local on = G.buyMode == k
-    local hov = H.mouseIn(sx, 64, 52, 28)
-    col(C.line, on and 0.3 or (hov and 0.12 or 0.04)); lg.rectangle("fill", sx, 64, 52, 28)
-    H.brackets(sx, 64, 52, 28, 4, on and C.white or C.dim)
-    lg.setFont(Fo.xs); col(on and C.white or C.dim)
-    lg.printf(m == "MAX" and "MAX" or ("x" .. m), sx, 72, 52, "center")
-    H.addHit(sx, 64, 52, 28, function() G.buyMode = k; FX.play("tick", 1.4) end)
-  end
+  local labels = {}
+  for k, m in ipairs(G.BUYMODES) do labels[k] = m == "MAX" and "MAX" or ("x" .. m) end
+  -- right-aligned: ends 12px before the AUTO toggle
+  H.segmented(x + w - 108 - 220, 64, 220, 28, labels, G.buyMode, function(k) G.buyMode = k; FX.play("tick", 1.4) end, "buymode")
   autoToggle(x + w - 96, 64, 96, "autoUnits", "autoUnits")
 
   local clip = {TOP, BOT}
@@ -67,7 +60,7 @@ local function units()
     local can = S.stardust >= cost
     local hov = H.mouseIn(x, y, w, rowH - 6, clip)
     col(C.panel, 0.92); lg.rectangle("fill", x, y, w, rowH - 6)
-    if can then col(C.line, 0.06 + 0.03 * math.sin(G.time * 4 + i)); lg.rectangle("fill", x, y, w, rowH - 6) end
+    if can then col(C.line, 0.06); lg.rectangle("fill", x, y, w, rowH - 6) end
     if hov then col(C.white, 0.05); lg.rectangle("fill", x, y, w, rowH - 6) end
     H.brackets(x, y, w, rowH - 6, 8, can and (hov and C.white or C.line) or C.faint)
     col(can and C.line or C.faint); lg.rectangle("line", x + 10, y + 10, 44, 44)
@@ -85,7 +78,7 @@ local function units()
     col(can and C.orange or C.faint, can and 0.85 or 0.4)
     lg.rectangle(can and "fill" or "line", bx, y + 10, 124, 44)
     lg.setFont(Fo.xs); col(can and C.bg or C.dim); lg.printf(nb > 1 and ("BUY x" .. nb) or "BUY", bx, y + 15, 124, "center")
-    lg.setFont(Fo.s); col(can and C.bg or C.red); lg.printf(fmt(cost), bx, y + 31, 124, "center")
+    lg.setFont(Fo.s); col(can and C.bg or C.dim); lg.printf(fmt(cost), bx, y + 31, 124, "center")
     local ms, prev = G.nextMilestone(i)
     if ms then
       -- progress bar ends well before the "x2 @N" label and the owned/buy block
@@ -147,15 +140,15 @@ local function tech()
       local hov = H.mouseIn(cx, cy, cw, ch, clip)
       local cc = (u.code == "SIG" or u.code == "LOG") and C.orange or ((u.code == "TAP" or u.code == "AUT") and C.red or C.line)
       col(C.panel, 0.92); lg.rectangle("fill", cx, cy, cw, ch)
-      if can then col(cc, 0.08 + 0.04 * math.sin(G.time * 4 + n)); lg.rectangle("fill", cx, cy, cw, ch) end
+      if can then col(cc, 0.08); lg.rectangle("fill", cx, cy, cw, ch) end
       if hov then col(C.white, 0.05); lg.rectangle("fill", cx, cy, cw, ch) end
       H.brackets(cx, cy, cw, ch, 7, can and (hov and C.white or cc) or C.faint)
-      col(cc, can and 0.9 or 0.35); lg.rectangle("fill", cx, cy, 4, ch)
+      col(cc, can and 0.9 or 0.35); H.leftEdge(cx, cy, cw, ch, 4)
       H.label(u.code, cx + 12, cy + 8, cc)
       lg.setFont(Fo.s); col(can and C.white or C.dim)
       lg.printf(u.name:upper(), cx + 12, cy + 22, cw - 20, "left")
       H.label(H.fit(Fo.xs, u.desc, cw - 20), cx + 12, cy + 58, can and C.line or C.dim)
-      lg.setFont(Fo.s); col(can and C.orange or C.red); lg.printf(fmt(u.cost), cx, cy + ch - 20, cw - 10, "right")
+      lg.setFont(Fo.s); col(can and C.orange or C.dim); lg.printf(fmt(u.cost), cx, cy + ch - 20, cw - 10, "right")
       if hov then H.setTip(u.name:upper(), u.desc .. "  //  COST " .. fmt(u.cost)) end
       H.addHit(cx, cy, cw, ch, function(mx, my) G.buyUpgrade(u, mx, my) end, clip)
     end

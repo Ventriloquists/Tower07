@@ -428,6 +428,31 @@ local function runSelftest()
   if f == 174 then G.tab = "map"; G.spawnEnemy("ELITE"); G.tacSel = {kind = "enemy", uid = G.enemies[#G.enemies].uid} end
   if f == 177 then shot("fix_map") end
   if f == 179 then G.tab = "core" end
+  -- rebuilt stations
+  if f == 181 then G.tab = "ops" end
+  if f == 183 then shot("station_ops") end
+  if f == 184 then G.tab = "archive" end
+  if f == 186 then shot("station_archive") end
+  if f == 187 then G.tab = "rigs"; G.S.rigs[1].tank = G.rigCap(1) end
+  if f == 189 then shot("station_rigs") end
+  if f == 190 then G.tab = "hangar"; G.openVault() end
+  if f == 192 then shot("station_hangar_vault") end
+  if f == 193 then G.vaultOpen = false; G.tab = "core" end
+  if f == 195 or f == 196 then
+    -- staged reactor: sweet-spot heat, surge filling, live chain, nothing drawn over it
+    FX.waves, FX.rays, FX.slams = {}, {}, {}
+    G.rankBanner, G.bannerQueue = nil, {}
+    G.heat, G.overheatT, G.surge, G.combo, G.sweetT = 0.86, 0, 0.62, 40, 6
+  end
+  if f == 197 then shot("reactor_staged") end
+  if f == 194 then
+    -- COLLECT ALL: queue every instant reward, drain the cascade, nothing claimable may remain
+    local before = #G.collectables()
+    local started = G.collectAll()
+    while #G.cascade > 0 do G.cascadeStep() end
+    local after = #G.collectables()
+    G.selftestCollect = (before == 0 or (started and after == 0)) and ("collect-ok(" .. before .. ")") or ("collect-FAIL " .. before .. "->" .. after)
+  end
   -- settings screens
   if f == 40 then G.settingsOpen = true; SettingsUI.section = "display" end
   if f == 44 then shot("settings_display") end
@@ -790,7 +815,7 @@ local function runSelftest()
   if f == 790 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
       " " .. tostring(G.selftestImport) .. " " .. tostring(G.selftestReset) .. " " .. tostring(G.selftestLazy) ..
-      " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestFocus) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
+      " " .. tostring(G.selftestKw) .. " " .. tostring(G.selftestFocus) .. " " .. tostring(G.selftestCollect) .. " " .. tostring(G.selftestReticle) .. " " .. tostring(G.selftestFuse) ..
       " " .. tostring(G.selftestTet) .. " " .. tostring(G.selftestFiesta) .. " " .. tostring(G.selftestHeat) ..
       " " .. tostring(G.selftestBoss) .. " " .. tostring(G.selftestAltar) .. " " .. tostring(G.selftestPilot) .. " " .. tostring(G.selftestForge) .. " " .. tostring(G.selftestTree) .. " " .. tostring(G.selftestShatter) .. " " .. tostring(G.selftestRigs) .. " " .. tostring(G.selftestPrism) .. " " .. tostring(G.selftestSounds) .. " " .. tostring(G.selftestMemes) ..
       " " .. (G.mapReport():gsub("\n", " | ")) ..
@@ -1092,8 +1117,7 @@ function love.keypressed(k)
       elseif G.altar then require("ui.altar").escape()
       elseif G.combine and G.combine.phase ~= "fusing" then G.combine = nil
       elseif G.perkChoice then G.closePerks()
-      elseif #G.choiceQueue > 0 and #G.S.drones >= G.bayCap() then cancelChoice()
-      elseif G.vaultOpen then require("ui.vault").escape() end
+      elseif #G.choiceQueue > 0 and #G.S.drones >= G.bayCap() then cancelChoice() end
     end
     return
   end
@@ -1106,7 +1130,8 @@ function love.keypressed(k)
     local key = F.SCENES[tonumber(k)][1]
     if G.unlocked(key) then G.tab = key; FX.play("tap", 1.6, 0.4) else FX.play("err") end
   elseif k == "escape" then
-    if G.tab ~= "core" then G.tab = "core"
+    if G.vaultOpen and G.tab == "hangar" then require("ui.vault").escape()
+    elseif G.tab ~= "core" then G.tab = "core"
     elseif love.window.getFullscreen() then toggleFullscreen()
     else G.settingsOpen = true end
   elseif Set.v.anyKey and not RESERVED[k] and #k == 1 then

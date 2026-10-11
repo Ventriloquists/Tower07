@@ -9,10 +9,11 @@ local C, col, fmt = H.C, H.col, H.fmt
 local TAU = math.pi * 2
 local Va = {}
 
-local X0, Y0, W, HH = 50, 70, 1180, 572
+-- the vault is a view of the HANGAR station (FLEET | VAULT), drawn in the content area, not a pop-up
+local X0, Y0, W, HH = 24, 90, 1232, 540
 local GX, GY, GW = X0 + 20, Y0 + 92, 800   -- module grid
 local GB = Y0 + HH - 20
-local PX, PW = X0 + 840, 320              -- right column
+local PX, PW = X0 + 840, W - 860           -- right column
 G.vaultOpen = false
 G.vaultFilter, G.vaultSort = 0, "rarity"
 local salvageArm -- two-click confirm for bulk salvage
@@ -194,13 +195,8 @@ end
 
 function Va.draw()
   local S, Fo = G.S, H.fonts
-  H.clearHits()
-  local x0, y0, x1, y1 = V.extents()
-  col(C.bg, 0.92); lg.rectangle("fill", x0, y0, x1 - x0, y1 - y0)
-  col(C.panel, 0.98); lg.rectangle("fill", X0, Y0, W, HH)
-  H.hatch(X0, Y0, W, 40, C.line, 0.1, 7)
-  H.brackets(X0, Y0, W, HH, 16, C.line)
-  lg.setFont(Fo.l); col(C.white); lg.print("MODULE VAULT", X0 + 18, Y0 + 7)
+  H.card(X0, Y0, W, HH, nil, C.line)
+  lg.setFont(Fo.d3); col(C.white); lg.print("MODULE VAULT", X0 + 18, Y0 + 10)
   H.label(#S.modules .. " / " .. G.vaultCap() .. " STORED  //  WHEN FULL, THE WEAKEST MODULE IS SALVAGED", X0 + 230, Y0 + 15, C.dim)
 
   local list = shown()
@@ -271,6 +267,17 @@ function Va.draw()
   -- right column: equip target + tools
   local y = Y0 + 52
   H.label("EQUIP TARGET", PX, y, C.dim)
+  -- cycle the target without leaving the vault
+  if #S.drones > 1 then
+    local function step(d)
+      local _, k = G.findDrone(G.hangarSel or -1)
+      k = ((k or 1) - 1 + d) % #S.drones + 1
+      G.hangarSel = S.drones[k].id
+      FX.play("tick", 1.3)
+    end
+    H.button(PX + PW - 64, y - 4, 30, 22, "<", true, function() step(-1) end, C.dim, Fo.xs)
+    H.button(PX + PW - 30, y - 4, 30, 22, ">", true, function() step(1) end, C.dim, Fo.xs)
+  end
   if target then
     local rc = C[D.RARITY[target.r].col]
     lg.setFont(Fo.m); col(C.white); lg.print(H.fit(Fo.m, G.droneLabel(target), PW - 10), PX, y + 14)
@@ -307,7 +314,6 @@ function Va.draw()
   end, armed and C.red or C.dim, Fo.xs)
   -- the altar
   altarPanel(y + 122)
-  H.button(PX + PW - 120, Y0 + HH - 46, 120, 30, "CLOSE", true, close, C.dim, Fo.xs)
 end
 
 function Va.escape() close() end

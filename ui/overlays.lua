@@ -19,7 +19,7 @@ local Vault = require "ui.vault"
 H.showTips = true
 
 function Ov.isModal()
-  return G.settingsOpen or G.fiesta ~= nil or G.altar ~= nil or G.vaultOpen or G.combine ~= nil or G.report ~= nil or G.dailyPending or #G.choiceQueue > 0 or G.perkChoice ~= nil
+  return G.settingsOpen or G.fiesta ~= nil or G.altar ~= nil or G.combine ~= nil or G.report ~= nil or G.dailyPending or #G.choiceQueue > 0 or G.perkChoice ~= nil
 end
 
 -- modal entrance: the backdrop fades in and the panel's frame draws itself, every time a modal opens
@@ -68,7 +68,7 @@ local function tooltip()
     col(C.bg, 0.97 * k); lg.rectangle("fill", x, y, w, h)
     col(ac, 0.08 * k); lg.rectangle("fill", x, y, w, 24)
     col(C.faint, k); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1)
-    col(ac, k); lg.rectangle("fill", x, y, 2, h)
+    col(ac, k); H.leftEdge(x, y, w, h, 2)
     if kw then H.label("GLOSSARY", x + w - 70, y + 7, C.orange, k) end
     lg.setFont(H.fonts.s); col(kw and C.orange or C.white, k); lg.print(tip.title, x + 12, y + 5)
     H.richf(tip.text, x + 12, y + 28, w - 22, "left", C.white, 0.82 * k, H.fonts.xs, true)
@@ -77,7 +77,7 @@ local function tooltip()
   col(C.bg, 0.97); lg.rectangle("fill", x, y, w, h)
   H.brackets(x, y, w, h, 6, kw and C.orange or C.white)
   if kw then
-    col(C.orange); lg.rectangle("fill", x, y, 3, h)
+    col(C.orange); H.leftEdge(x, y, w, h, 3)
     H.label("GLOSSARY", x + w - 70, y + 8, C.orange)
   end
   lg.setFont(H.fonts.s); col(kw and C.orange or C.white); lg.print(tip.title, x + 10, y + 6)
@@ -318,7 +318,7 @@ function Ov.draw()
   elseif G.dailyPending then daily()
   elseif #G.choiceQueue > 0 then choice()
   elseif G.perkChoice then perks()
-  elseif G.vaultOpen then Vault.draw() end
+  end
   tooltip()
 end
 

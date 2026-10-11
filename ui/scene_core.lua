@@ -376,8 +376,8 @@ local function quickBuild()
 end
 
 function Sc.draw()
-  hero()
   Reactor.draw()
+  hero() -- over the reactor: the readout must never sink behind the instrument
   sample()
   actionStack()
   status()

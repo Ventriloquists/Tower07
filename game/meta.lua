@@ -238,14 +238,26 @@ function G.collectAll()
   local list = G.collectables()
   if #list == 0 then FX.play("err") return false end
   for _, fn in ipairs(list) do G.cascade[#G.cascade + 1] = fn end
-  G.cascadeT = 0
+  G.cascadeT, G.cascadeRound = 0, 1
   return true
+end
+-- claiming can unlock more (a fresh directive that is already done, XP finishing a Signal Track tier):
+-- when the queue drains, pick those up too, a few rounds at most
+function G.cascadeStep()
+  table.remove(G.cascade, 1)()
+  if #G.cascade == 0 and (G.cascadeRound or 1) < 5 then
+    local more = G.collectables()
+    if #more > 0 then
+      G.cascadeRound = (G.cascadeRound or 1) + 1
+      for _, fn in ipairs(more) do G.cascade[#G.cascade + 1] = fn end
+    end
+  end
 end
 local function cascadeUpdate(dt)
   if #G.cascade == 0 then return end
   G.cascadeT = G.cascadeT - dt
   if G.cascadeT <= 0 then
-    table.remove(G.cascade, 1)()
+    G.cascadeStep()
     G.cascadeT = 0.14
   end
 end

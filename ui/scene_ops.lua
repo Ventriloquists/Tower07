@@ -1,4 +1,7 @@
--- OPS: directives, daily supply, world events, Signal Track (season pass).
+-- OPS: everything here runs on time and progress, so the station is built around lines.
+-- Top: the SIGNAL TRACK as a road (tier nodes on one line, rewards above, your position on it).
+-- Bottom left: three DIRECTIVES as mission dossiers with progress rings. Bottom right: the SCHEDULE
+-- (daily supply streak on its own short line, the live or next event, the event roster on demand).
 local V = require "lib.view"
 local H = require "lib.hud"
 local FX = require "game.fx"
@@ -7,157 +10,219 @@ local D = require "game.data"
 local I = require "ui.icons"
 local lg = V.lg
 local C, col, fmt, clamp = H.C, H.col, H.fmt, H.clamp
+local TAU = math.pi * 2
 local Sc = {}
+
+local function diamond(mode, x, y, r) lg.polygon(mode, x, y - r, x + r, y, x, y + r, x - r, y) end
+
+----------------------------------------------------------------------
+-- SIGNAL TRACK road
+----------------------------------------------------------------------
+local STEP = 132
+local function track()
+  local S = G.S
+  local Fo = H.fonts
+  local x, y, w, h = 24, 84, 1232, 182
+  local need = G.passNeed(S.passTier + 1)
+  local ready = G.passReady()
+  H.card(x, y, w, h, nil, ready > 0 and C.orange or C.line)
+  lg.setFont(Fo.d3); col(C.white); lg.print("SIGNAL TRACK", x + 16, y + 12)
+  H.label("TIER " .. S.passTier .. "  //  " .. fmt(S.sxp) .. " / " .. fmt(need) .. " SXP TO NEXT  //  EVERYTHING YOU DO EARNS SXP",
+    x + 170, y + 17, C.dim)
+  H.button(x + w - 236, y + 10, 222, 32, ready > 0 and ("CLAIM ALL  //  " .. ready .. (ready == 1 and " TIER" or " TIERS")) or "NOTHING TO CLAIM",
+    ready > 0, G.claimAllPass, C.orange, Fo.s, nil, ready > 0)
+  H.button(x + w - 318, y + 10, 34, 32, "<", true, function() G.passView = math.max(1, (G.passView or 1) - 4) end, C.dim, Fo.s)
+  H.button(x + w - 280, y + 10, 34, 32, ">", true, function() G.passView = (G.passView or 1) + 4 end, C.dim, Fo.s)
+  -- the road: scrolls smoothly; wheel and arrows move the view; every visit starts at your next claim
+  local now = love.timer.getTime()
+  if not G.passView or now - (Sc.seen or 0) > 0.5 then G.passView = math.max(1, S.passClaimed - 1) end
+  Sc.seen = now
+  local view = H.tween("passRoad", G.passView, H.MO.base)
+  local lx0, lx1, ly = x + 20, x + w - 20, y + 118
+  lg.push("all")
+  lg.intersectScissor(lx0 - 10, y + 48, lx1 - lx0 + 20, h - 50)
+  local function nx(t) return lx0 + 40 + (t - view) * STEP end
+  -- base line, lit up to your exact position (claimed + progress into the next tier)
+  col(C.faint); lg.rectangle("fill", lx0, ly, lx1 - lx0, 2)
+  local pos = S.passTier + clamp(S.sxp / need, 0, 1)
+  local px = nx(pos)
+  col(C.orange, 0.9); lg.rectangle("fill", lx0, ly, clamp(px - lx0, 0, lx1 - lx0), 2)
+  local first = math.max(1, math.floor(view) - 1)
+  for t = first, first + math.ceil((lx1 - lx0) / STEP) + 2 do
+    local cx = nx(t)
+    if cx > lx0 - 60 and cx < lx1 + 60 then
+      local r = D.passReward(t)
+      local rc = C[r.col] or C.line
+      local claimed = t <= S.passClaimed
+      local reached = t <= S.passTier
+      local nextClaim = t == S.passClaimed + 1 and reached
+      local size = r.big and 9 or 6
+      local hov = H.mouseIn(cx - STEP / 2, y + 48, STEP, h - 52)
+      -- reward above the line
+      I.draw(r.icon or "crate", cx, ly - 44, r.big and 12 or 9, reached and rc or C.faint, (reached or hov) and 1 or 0.7)
+      lg.setFont(Fo.xs); col(reached and rc or C.dim, reached and 1 or 0.8)
+      lg.printf(H.fit(Fo.xs, r.text, STEP - 12), cx - STEP / 2 + 6, ly - 26, STEP - 12, "center")
+      -- node on the line
+      col(C.bg); diamond("fill", cx, ly + 1, size + 3)
+      if claimed then
+        col(C.orange, 0.55); diamond("fill", cx, ly + 1, size)
+      elseif nextClaim then
+        if not H.reduced then
+          local p = (love.timer.getTime() * 1.1) % 1
+          col(C.orange, 0.7 * (1 - p)); diamond("line", cx, ly + 1, size + 4 + p * 12)
+        end
+        col(C.orange); diamond("fill", cx, ly + 1, size + 1)
+      elseif reached then
+        col(rc); diamond("fill", cx, ly + 1, size)
+      else
+        col(r.big and rc or C.faint, r.big and 0.6 or 1); diamond("line", cx, ly + 1, size)
+      end
+      if r.big then col(rc, reached and 0.8 or 0.35); diamond("line", cx, ly + 1, size + 6) end
+      -- tier and state below
+      lg.setFont(Fo.s); col(reached and C.white or C.dim); lg.printf("TIER " .. t, cx - 50, ly + 14, 100, "center")
+      lg.setFont(Fo.xs)
+      if claimed then col(C.dim); lg.printf("CLAIMED", cx - 50, ly + 32, 100, "center")
+      elseif nextClaim then col(C.orange); lg.printf("CLAIM", cx - 50, ly + 32, 100, "center")
+      elseif reached then col(rc); lg.printf("READY", cx - 50, ly + 32, 100, "center")
+      elseif t == S.passTier + 1 then col(C.line); lg.printf(math.floor(S.sxp / need * 100) .. "%", cx - 50, ly + 32, 100, "center")
+      else col(C.faint); lg.printf("LOCKED", cx - 50, ly + 32, 100, "center") end
+      if hov then
+        H.setTip("TIER " .. t, r.text .. (claimed and " // CLAIMED" or (reached and " // READY" or "")))
+        if nextClaim then col(C.orange, 0.06); lg.rectangle("fill", cx - STEP / 2, y + 48, STEP, h - 52) end
+      end
+      if nextClaim then H.addHit(cx - STEP / 2, y + 48, STEP, h - 52, G.claimPass) end
+    end
+  end
+  -- you are here
+  if px > lx0 and px < lx1 then
+    col(C.white); lg.polygon("fill", px - 5, ly - 12, px + 5, ly - 12, px, ly - 4)
+  end
+  lg.pop()
+  H.scrollRegion(x, y + 48, w, h - 50, "passView", true)
+end
+
+----------------------------------------------------------------------
+-- DIRECTIVES: three mission dossiers
+----------------------------------------------------------------------
+local function ring(cx, cy, r, f, c)
+  lg.setLineWidth(4)
+  col(C.faint, 0.8); lg.circle("line", cx, cy, r, 64)
+  if f > 0 then col(c); lg.arc("line", "open", cx, cy, r, -math.pi / 2, -math.pi / 2 + clamp(f, 0, 1) * TAU, 64) end
+  lg.setLineWidth(1)
+  col(c, 0.5)
+  for k = 0, 23 do
+    local a = k / 24 * TAU
+    lg.line(cx + math.cos(a) * (r + 6), cy + math.sin(a) * (r + 6), cx + math.cos(a) * (r + (k % 6 == 0 and 11 or 8)), cy + math.sin(a) * (r + (k % 6 == 0 and 11 or 8)))
+  end
+end
 
 local function directives()
   local S = G.S
   local Fo = H.fonts
-  local x, w = 24, 600
-  H.label("DIRECTIVES // " .. S.dirDone .. " COMPLETED", x, 84, C.white)
-  local y = 100
+  local x0, y, h = 24, 284, 346
+  H.heading("DIRECTIVES", x0, y - 2, 800, C.line, nil, S.dirDone .. " COMPLETED  //  REROLL ONE EVERY 5 MIN")
+  y = y + 26
+  h = h - 26
+  local w = (800 - 2 * 12) / 3
   for i, d in ipairs(S.directives) do
+    local x = x0 + (i - 1) * (w + 12)
     local prog = G.dirProgress(d)
+    local f = clamp(prog / d.target, 0, 1)
     local done = prog >= d.target
-    local h = 104
-    local dc = d.priority and C.orange or C.line
-    col(C.panel, 0.92); lg.rectangle("fill", x, y, w, h)
-    if done then col(C.orange, 0.08 + 0.05 * math.sin(G.time * 5 + i)); lg.rectangle("fill", x, y, w, h) end
-    H.brackets(x, y, w, h, 8, done and C.orange or dc)
+    local dc = done and C.orange or (d.priority and C.orange or C.line)
+    H.card(x, y, w, h, nil, dc)
     if d.priority then
-      H.hatch(x, y, w, 20, C.orange, 0.3, 6)
-      H.label("PRIORITY // TRIPLE REWARD", x + 12, y + 4, C.orange)
+      col(C.orange, 0.12); lg.rectangle("fill", x + H.CUT, y + 1, w - H.CUT, 22)
+      H.label("PRIORITY  //  TRIPLE REWARD", x + 14, y + 6, C.orange)
     else
-      H.label(string.format("DIRECTIVE %02d", i), x + 12, y + 4, C.dim)
+      H.label(string.format("DIRECTIVE %02d", i), x + 14, y + 6, C.dim)
     end
-    H.rich(H.fit(Fo.l, G.dirText(d), w - 220), x + 12, y + 24, done and C.white or C.line, 1, Fo.l)
-    H.segbar(x + 12, y + 58, w - 220, 8, clamp(prog / d.target, 0, 1), 24, done and C.orange or C.line)
-    H.label(fmt(math.max(0, math.min(prog, d.target))) .. " / " .. fmt(d.target), x + 12, y + 72, done and C.white or C.dim)
-    H.label("REWARD  " .. G.rewardText(d), x + 12, y + 90, d.priority and C.orange or C.line)
-    H.button(x + w - 190, y + 26, 176, 42, done and "CLAIM" or "IN PROGRESS", done, function() G.claimDirective(i) end,
+    -- progress ring with the count inside
+    local cx, cy = x + w / 2, y + 96
+    ring(cx, cy, 52, f, dc)
+    lg.setFont(Fo.d2); col(done and C.orange or C.white); lg.printf(math.floor(f * 100) .. "%", cx - 60, cy - 18, 120, "center")
+    lg.setFont(Fo.xs); col(C.dim)
+    lg.printf(fmt(math.max(0, math.min(prog, d.target))) .. " / " .. fmt(d.target), cx - 60, cy + 10, 120, "center")
+    -- the order
+    H.richf(G.dirText(d), x + 14, y + 168, w - 28, "center", C.white, 1, Fo.s)
+    H.label("REWARD", x + 14, y + 214, C.dim)
+    H.richf(G.rewardText(d), x + 14, y + 228, w - 28, "left", d.priority and C.orange or C.line, 1, Fo.xs)
+    H.button(x + 14, y + h - 76, w - 28, 36, done and "CLAIM" or "IN PROGRESS", done, function() G.claimDirective(i) end,
       C.orange, Fo.m, nil, done)
     local cd = S.rerollAt - G.now()
-    H.button(x + w - 190, y + 74, 176, 26, cd > 0 and ("REROLL IN " .. H.clock(cd):sub(4)) or "REROLL (FREE, 5 MIN CD)",
+    H.button(x + 14, y + h - 34, w - 28, 24, cd > 0 and ("REROLL IN " .. H.clock(cd):sub(4)) or "REROLL",
       cd <= 0 and not done, function() G.rerollDirective(i) end, C.dim, Fo.xs)
-    y = y + h + 6
   end
 end
 
-local function daily()
+----------------------------------------------------------------------
+-- SCHEDULE: daily streak line, live/next event, roster
+----------------------------------------------------------------------
+local function schedule()
   local S = G.S
   local Fo = H.fonts
-  local x, y, w, h = 640, 84, 616, 120
-  H.card(x, y, w, h, "DAILY SUPPLY // STREAK " .. S.daily.streak .. " DAYS", C.line,
-    G.dailyPending and "READY" or ("NEXT IN " .. H.clock(86400 - (os.date("*t").hour * 3600 + os.date("*t").min * 60 + os.date("*t").sec))))
-  local cur = G.dailyPending and ((G.dailyNextStreak() - 1) % 7 + 1) or ((math.max(1, S.daily.streak) - 1) % 7 + 1)
-  local bw = (w - 24 - 6 * 6) / 7
+  local x, y, w = 840, 282, 416
+  local now = os.date("*t")
+  local left = 86400 - (now.hour * 3600 + now.min * 60 + now.sec)
+  local canClaim = not G.dailyPending and S.daily.last ~= G.today()
+  H.heading("SCHEDULE", x, y, w, C.line, nil, canClaim and "SUPPLY READY" or ("RESET IN " .. H.clock(left)))
+  -- daily supply: seven stops on a short line
+  y = y + 26
+  H.card(x, y, w, 112, "DAILY SUPPLY  //  STREAK " .. S.daily.streak, canClaim and C.orange or C.line)
+  local cur = canClaim and ((G.dailyNextStreak() - 1) % 7 + 1) or ((math.max(1, S.daily.streak) - 1) % 7 + 1)
+  local lx0, lx1, ly = x + 30, x + w - 30, y + 54
+  col(C.faint); lg.rectangle("fill", lx0, ly, lx1 - lx0, 2)
+  local stepW = (lx1 - lx0) / 6
+  local gotN = canClaim and (cur - 1) or cur
+  if gotN > 1 then col(C.line, 0.8); lg.rectangle("fill", lx0, ly, stepW * (gotN - 1), 2) end
   for k, day in ipairs(D.DAILY) do
-    local bx, by = x + 12 + (k - 1) * (bw + 6), y + 32
-    local isCur = k == cur
-    local got = (not G.dailyPending and k <= cur) or (G.dailyPending and k < cur)
-    if isCur and G.dailyPending then H.hatch(bx, by, bw, 76, C.orange, 0.3, 5) end
-    if got then col(C.line, 0.12); lg.rectangle("fill", bx, by, bw, 76) end
-    H.brackets(bx, by, bw, 76, 5, isCur and C.orange or (got and C.line or C.faint))
-    lg.setFont(Fo.m); col(isCur and C.orange or (got and C.white or C.dim)); lg.printf(day.code, bx, by + 8, bw, "center")
-    if got then I.draw("check", bx + bw / 2, by + 40, 7, C.line) end
-    lg.setFont(Fo.xs); col(C.dim); lg.printf(day.text, bx + 2, by + 56, bw - 4, "center")
+    local cx = lx0 + (k - 1) * stepW
+    local got = (canClaim and k < cur) or (not canClaim and k <= cur)
+    local isNext = canClaim and k == cur
+    col(C.bg); diamond("fill", cx, ly + 1, 9)
+    if isNext then col(C.orange); diamond("fill", cx, ly + 1, 7)
+    elseif got then col(C.line); diamond("fill", cx, ly + 1, 6)
+    else col(C.faint); diamond("line", cx, ly + 1, 6) end
+    lg.setFont(Fo.xs); col(isNext and C.orange or (got and C.white or C.dim)); lg.printf(day.code, cx - 24, ly - 22, 48, "center")
+    if H.mouseIn(cx - 24, ly - 24, 48, 48) then H.setTip("DAY " .. k .. " // " .. day.code, day.text) end
   end
-end
-
-local function events()
-  local Fo = H.fonts
-  local x, y, w, h = 640, 212, 616, 228
-  local ev = G.event
-  if ev then
-    local ec = C[ev.def.col]
-    H.card(x, y, w, h, "EVENT ACTIVE", ec, H.fmtTime(ev.t) .. " LEFT")
-    H.hatch(x, y + 26, w, 90, ec, 0.1, 7)
-    lg.setFont(Fo.dxl); col(ec); lg.printf(ev.def.name, x, y + 40, w, "center")
-    H.richf(ev.def.desc, x, y + 82, w, "center", C.white, 1, Fo.s)
-    H.bar(x + 40, y + 108, w - 80, 4, ev.t / ev.dur, ec)
-  elseif G.nextEvent then
-    local ne = G.nextEvent
-    H.card(x, y, w, h, "NEXT EVENT", C.dim, "IN " .. H.fmtTime(ne.t))
-    lg.setFont(Fo.dxl); col(C[ne.def.col], 0.85); lg.printf(ne.def.name, x, y + 40, w, "center")
-    H.richf(ne.def.desc, x, y + 82, w, "center", C.dim, 1, Fo.s)
-    lg.setFont(Fo.l); col(C.white); lg.printf(H.clock(ne.t), x, y + 102, w, "center")
+  if canClaim then
+    H.button(x + 14, y + 74, w - 28, 28, "CLAIM DAY " .. cur .. "  //  " .. D.DAILY[cur].text, true, G.claimDaily, C.orange, Fo.xs, nil, true)
+  else
+    H.label("Next supply: " .. D.DAILY[cur % 7 + 1].text .. "  //  in " .. H.clock(left), x + 14, y + 82, C.dim)
   end
-  -- all event types
-  local cw = (w - 24 - 2 * 8) / 3
+  -- event: live or next
+  y = y + 120
+  local ev, ne = G.event, G.nextEvent
+  local def = ev and ev.def or (ne and ne.def)
+  local ec = def and C[def.col] or C.dim
+  H.card(x, y, w, 104, ev and "EVENT LIVE" or "NEXT EVENT", ec, ev and (H.fmtTime(ev.t) .. " LEFT") or (ne and ("IN " .. H.fmtTime(ne.t)) or nil))
+  if def then
+    lg.setFont(Fo.d2); col(ec, ev and 1 or 0.8); lg.print(def.name, x + 14, y + 32)
+    H.richf(def.desc, x + 14, y + 62, w - 28, "left", ev and C.white or C.dim, 1, Fo.xs)
+    if ev then H.bar(x + 14, y + 92, w - 28, 3, ev.t / ev.dur, ec)
+    elseif ne then H.label(H.clock(ne.t), x + w - 80, y + 36, C.white) end
+  end
+  -- roster: names only, details on hover
+  y = y + 112
+  local cw = (w - 8) / 2
   for k, e in ipairs(D.EVENTS) do
-    local cx = x + 12 + ((k - 1) % 3) * (cw + 8)
-    local cy = y + 136 + math.floor((k - 1) / 3) * 44
+    local cx = x + ((k - 1) % 2) * (cw + 8)
+    local cy = y + math.floor((k - 1) / 2) * 22
     local active = ev and ev.def.id == e.id
-    col(C[e.col], active and 0.2 or 0.05); lg.rectangle("fill", cx, cy, cw, 38)
-    H.brackets(cx, cy, cw, 38, 4, C[e.col], active and 1 or 0.5)
-    H.label(e.name, cx + 8, cy + 5, C[e.col])
-    H.label(H.fit(Fo.xs, e.desc, cw - 14), cx + 8, cy + 20, C.dim)
+    local hov = H.mouseIn(cx, cy, cw, 20)
+    col(C[e.col], active and 1 or (hov and 0.8 or 0.45)); lg.rectangle("fill", cx, cy + 6, 6, 6)
+    lg.setFont(Fo.xs); col(active and C.white or (hov and C.line or C.dim)); lg.print(e.name, cx + 12, cy + 3)
+    if hov then H.setTip(e.name, e.desc) end
   end
-end
-
-local function track()
-  local S = G.S
-  local Fo = H.fonts
-  local x, y, w, h = 24, 444, 1232, 186
-  local need = G.passNeed(S.passTier + 1)
-  local ready = G.passReady()
-  H.card(x, y, w, h, nil, ready > 0 and C.orange or C.line)
-  lg.setFont(Fo.l); col(C.white); lg.print("SIGNAL TRACK", x + 14, y + 8)
-  H.label("TIER " .. S.passTier .. "  //  " .. fmt(S.sxp) .. " / " .. fmt(need) .. " SXP  //  EARN SXP FROM EVERYTHING YOU DO",
-    x + 200, y + 16, C.dim)
-  H.bar(x + 14, y + 40, w - 340, 6, S.sxp / need, C.orange)
-  if ready > 0 then
-    H.button(x + w - 236, y + 10, 222, 36, "CLAIM ALL (" .. ready .. ")", true, G.claimAllPass, C.orange, Fo.m, nil, true)
-  end
-  -- tier nodes
-  local nw, gap = 112, 8
-  local visible = math.floor((w - 28 + gap) / (nw + gap))
-  local first = G.passView or math.max(1, S.passClaimed + 1 - 2)
-  first = math.max(1, first)
-  G.passView = first
-  local ny = y + 56
-  for k = 0, visible - 1 do
-    local t = first + k
-    local nx = x + 14 + k * (nw + gap)
-    local r = D.passReward(t)
-    local rc = C[r.col] or C.line
-    local claimed = t <= S.passClaimed
-    local reached = t <= S.passTier
-    local nextClaim = t == S.passClaimed + 1 and reached
-    local hov = H.mouseIn(nx, ny, nw, 120)
-    col(C.panel, 0.95); lg.rectangle("fill", nx, ny, nw, 120)
-    if r.big then H.hatch(nx, ny, nw, 120, rc, reached and 0.15 or 0.06, 6) end
-    if nextClaim then col(C.orange, 0.15 + 0.08 * math.sin(G.time * 6)); lg.rectangle("fill", nx, ny, nw, 120) end
-    H.brackets(nx, ny, nw, 120, 6, nextClaim and C.orange or (reached and rc or C.faint), (reached or r.big) and 1 or 0.6)
-    lg.setFont(Fo.s); col(reached and C.white or C.dim); lg.printf("TIER " .. t, nx, ny + 8, nw, "center")
-    local icon = r.icon or "crate"
-    I.draw(icon, nx + nw / 2, ny + 50, r.big and 14 or 11, reached and rc or C.faint)
-    lg.setFont(Fo.xs); col(reached and rc or C.dim)
-    lg.printf(H.fit(Fo.xs, r.big and r.text:gsub(" CRATE", "") or r.text, nw - 8), nx + 4, ny + 76, nw - 8, "center")
-    if claimed then
-      I.draw("check", nx + nw / 2, ny + 104, 7, C.line)
-    elseif nextClaim then
-      lg.setFont(Fo.xs); col(C.orange); lg.printf("CLAIM", nx, ny + 98, nw, "center")
-      H.addHit(nx, ny, nw, 120, G.claimPass)
-    elseif reached then
-      H.label("READY", nx + nw / 2 - 16, ny + 98, rc)
-    else
-      H.label(t == S.passTier + 1 and (math.floor(S.sxp / need * 100) .. "%") or "LOCKED", nx + nw / 2 - 18, ny + 98, C.faint)
-    end
-    if hov then H.setTip("TIER " .. t, r.text .. (claimed and " // CLAIMED" or (reached and " // READY" or ""))) end
-  end
-  H.scrollRegion(x, ny, w, 120, "passView", true)
-  -- paging (mouse wheel works too)
-  H.button(x + w - 316, y + 12, 34, 30, "<", first > 1, function() G.passView = math.max(1, first - visible) end, C.dim, Fo.s)
-  H.button(x + w - 276, y + 12, 34, 30, ">", true, function() G.passView = first + visible end, C.dim, Fo.s)
 end
 
 function Sc.draw()
   local Fo = H.fonts
   lg.setFont(Fo.d2); col(C.white); lg.print("OPERATIONS", 24, 54)
-  directives()
-  daily()
-  events()
   track()
+  directives()
+  schedule()
 end
 
 return Sc

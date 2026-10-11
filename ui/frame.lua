@@ -101,14 +101,13 @@ function F.background()
   local t = love.timer.getTime()
   col(C.line, 0.075); love.graphics.draw(glow, 640, -120, 0, 980, 620)
   col(C.orange, 0.035); love.graphics.draw(glow, 1180, 760, 0, 720, 460)
-  -- survey grid with slight parallax toward the cursor
-  local mx, my = V.mouse()
-  local px = H.reduced and 0 or (mx - 640) / 640 * -6
+  -- the grid is registered to the layout: at rest it always lands on whole 40px cells (no cursor drift),
+  -- so panels built on 40px steps sit exactly on its lines
+  local px, py = 0, 0
   -- parallax camera: the grid drifts as you travel along the spine, so stations read as places side by side
   local _, st = F.scene(G.tab)
-  local cam = H.tween("cam", -((st or 1) - 1) * 220, 5) * 0.4
+  local cam = H.tween("cam", -((st or 1) - 1) * 400, 5) * 0.4 -- 160px (one major cell) per station
   local camMinor, camMajor = cam % 40 - 40, cam % 160 - 160
-  local py = H.reduced and 0 or (my - 360) / 360 * -4
   -- the grid is texture, not content: barely there, with registration crosses only on the major lines
   col(C.faint, 0.07)
   for x = math.floor(x0 / 40) * 40, x1 + 80, 40 do lg.line(x + px + camMinor, y0, x + px + camMinor, y1) end
