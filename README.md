@@ -4,6 +4,8 @@ An idle / incremental game built with [LÖVE](https://love2d.org/) in a clean, O
 
 You are the last technician of Tower 07. Tap the reactor, build a harvesting fleet, pump hydro from the rigs, fabricate drones, push back scav raiders on the tactical map, loot crates and reboot the cycle for permanent Core Data. The tower keeps harvesting while you're away.
 
+![The CORE station: the Tower 07 reactor in the heat sweet spot, the Action Stack on the left, live telemetry on the right and the Spine navigation at the bottom](docs/screenshot.png)
+
 ## Features
 
 - **Reactor core**: tap for energy, build tap chains and trigger Core Surge. 1 in 1000 taps hits a jackpot.
@@ -19,7 +21,7 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
 - **Fleet autopilot**: auto-loadout keeps the best modules on the strongest drones, auto-upgrade spends parts, auto-salvage recycles low-rarity modules.
 - **Module forge** (vault): 3 modules of the same type, rarity and item level fuse into 1 at item level +1 (keeping the best roll); 10 modules of one rarity become 1 of the next rarity.
 - **Mythic Altar**: feed 10 MYTHIC modules to forge a perk point whose cards are all ENHANCED or PRIME.
-- **Tactical map**: fog of war, sector claiming, scav enemies, motherships, endless zones and loot crates in six rarities.
+- **Tactical map**: fog of war, sector claiming, scav enemies, motherships, endless zones and loot crates in six rarities. A crate budget (8 random drops per minute) keeps a maxed fleet from flooding the map; mothership, signal and directive crates always drop.
   - **Weather** changes every few minutes: TAILWIND (faster drones and missions), FOG (hidden scavs, crates one rarity higher), STORM (slower drones, double strike damage).
   - **Radiation sectors** take twice as long to claim but always drop an extra crate.
   - **TET uplink**: an orbital strike that charges over time and with every kill, hitting all scavs within 3 sectors.
@@ -30,15 +32,18 @@ You are the last technician of Tower 07. Tap the reactor, build a harvesting fle
 - **Reboot (prestige)**: trade the cycle for Core Data and spend it in a zoomable, pannable protocol skill tree: 6 branches, 54 nodes, 200+ ranks (output, tapping, fleet, map range, salvage, signals).
 - **Reactor saturation**: once a reboot would double your Core Data, output falls in proportion to how far past that line the run is (twice past = half output), a hard wall instead of a soft curve. Every reward worth "N seconds of production" (crates, directives, signals, offline time) uses the saturated output, so nothing bypasses it. One reboot can at most triple your Core Data, and that cap charges up over the first 60 minutes of a run (x2 after 30), so reboots cannot cascade in minutes.
 - **Glossary**: every game term is highlighted in the UI and explained on hover.
-- **Settings**: the COMMAND house style plus 70+ color themes (including high-contrast, colorblind-safe, memey and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
+- **Settings**: the COMMAND house style plus 59 more color themes (including high-contrast, colorblind-safe, joke palettes and three unlockable themes), audio channels, comfort options (shake, flash, reduced motion), save export/import/backup, and quality-of-life extras:
   - **Boss key (F12)**: disguises the game as a spreadsheet or build log.
   - **Nap mode** and **eco mode** to save power.
   - **Touch-grass reminders**.
   - **Lazy mode**: automatically claims routine rewards.
-  - **Memes**: a meme theme pack (memes only appear while one of these themes is active: real meme sound effects from the `sounds/` folder, Impact-font captions for big moments, press F to pay respects, meme chatter, meme rank titles and callsigns) (MLG PRO, MUCH DOGE, ILLUMINATI CONFIRMED, AMOGUS, THIS IS FINE, AVERAGE TOWER ENJOYER).
-  - **Themes**: 50+ palettes, from proper (Blueprint, Sakura, Arctic) to memes (Hotdog Stand, MS Paint, Bliss.jpg) and cursed, nearly unplayable ones (F9 always resets the theme). Desktop-app themes (macOS with a magnifying Dock, Windows 11, YouTube, Reddit, Twitter) switch to rounded, shadowed panels, sentence case and the system font; **macOS GLASS** makes the window see-through on Windows. Warp themes move the whole screen (upside down, mirrored, drunk, DVD screensaver...) and stay clickable.
+  - **Themes**: 60 palettes, from proper (Blueprint, Sakura, Arctic) to joke palettes (Hotdog Stand, MS Paint, Bliss.jpg) and cursed, nearly unplayable ones (F9 always resets the theme). Warp themes move the whole screen (upside down, mirrored, drunk, DVD screensaver...) and stay clickable.
 
 ## Running
+
+**Windows release:** unzip `Tower07-win64-<date>.zip` and run `Tower07.exe`. Nothing to install; keep the DLLs next to the exe. Saves go to `%APPDATA%\tower_harvest`.
+
+**From source:**
 
 1. Install [LÖVE 11.x](https://love2d.org/).
 2. Clone the repo and run the folder:
@@ -54,6 +59,8 @@ On Windows:
 ```
 
 The window can be resized, and fullscreen is supported (F11).
+
+**Building the release:** run `release.bat` (needs LÖVE installed). It packs the game, fuses it with `love.exe` into `Tower07.exe`, adds the runtime DLLs and the LÖVE license, and writes `Release\Tower07-win64-<date>.zip`.
 
 ## Controls
 
@@ -85,7 +92,7 @@ game/               game state & logic (core, tactical map, meta loops, data, gl
 ui/                 frame (top bar / dock / comms), one file per scene, overlays, settings, themes
 ```
 
-Sound effects are synthesized at startup; the meme themes can also play MP3s from `sounds/`. The game uses no image assets.
+All sound effects are synthesized at startup. The game ships no image or audio files.
 
 ### Design system
 
@@ -94,7 +101,7 @@ Sound effects are synthesized at startup; the meme themes can also play MP3s fro
 The other stations follow the same line language: **OPS** puts the Signal Track on a road (tier nodes on one line, rewards above, your position on it, every visit opens at your next claim), the three directives as dossiers with progress rings, and a SCHEDULE with the daily streak, the live or next event and the event roster. **ARCHIVE** is a codex: the milestone line on top, the ~40 log series as an index with one tick per entry, and the selected series as a readable ladder (name, condition, reward, claim). **RIGS** is a flow diagram: tanks fill live through intake pipes, collecting sends the water down the manifold into the reserve, and the reserve tells you how many drone fabrications it buys. The **module vault** is a view of the HANGAR (FLEET / VAULT), not a pop-up, and you can switch the equip target drone without leaving it. MAP (already a spatial tactical view) and REBOOT (the zoomable protocol tree) keep their own layouts.
 
 
-The house style is **COMMAND** (the default theme): graphite surfaces, ice-white interface light and one warm signal amber for anything that needs action. Every HUD theme shares the same building blocks; desktop-app themes (macOS, Windows, web) keep their own drawing.
+The house style is **COMMAND** (the default theme): graphite surfaces, ice-white interface light and one warm signal amber for anything that needs action. Every theme shares the same building blocks.
 
 - **Tokens** (`lib/hud.lua`): palette roles in `H.C` (`bg`, `panel`, `line` = interface light, `white` = text, `dim`, `faint` = separators, `orange` = action, `red` = danger, `gold` = reward), spacing `H.SP` (8 pt grid), motion speeds `H.MO`, easing curves `H.ease`, chamfer size `H.CUT`.
 - **Silhouette**: panel-sized rectangles lose their top-left and bottom-right corners (`V.chamfer` in `lib/view.lua`); corner brackets follow the cut.

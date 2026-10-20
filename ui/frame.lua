@@ -30,71 +30,7 @@ end
 ----------------------------------------------------------------------
 -- background grid + flying signal
 ----------------------------------------------------------------------
--- macOS Tahoe style wallpaper: soft vertical gradient with slow, blurred colour blobs behind the glass
-local wallMesh, wallKey
-local WALL = {
-  light = {top = {0.55, 0.76, 0.98}, bottom = {0.86, 0.90, 0.99},
-    blobs = {{0.30, 0.62, 1.00}, {0.62, 0.50, 1.00}, {0.25, 0.85, 0.88}, {1.00, 0.62, 0.78}, {0.45, 0.80, 1.00}}},
-  dark = {top = {0.04, 0.06, 0.16}, bottom = {0.09, 0.05, 0.17},
-    blobs = {{0.16, 0.28, 0.85}, {0.48, 0.18, 0.72}, {0.08, 0.48, 0.62}, {0.70, 0.18, 0.42}, {0.20, 0.40, 0.95}}},
-}
-local function wallpaper(kind)
-  local w = WALL[kind] or WALL.light
-  local x0, y0, x1, y1 = V.extents()
-  local key = kind .. x0 .. y0 .. x1 .. y1
-  if wallKey ~= key then
-    wallMesh = love.graphics.newMesh({
-      {x0, y0, 0, 0, w.top[1], w.top[2], w.top[3], 1}, {x1, y0, 1, 0, w.top[1], w.top[2], w.top[3], 1},
-      {x1, y1, 1, 1, w.bottom[1], w.bottom[2], w.bottom[3], 1}, {x0, y1, 0, 1, w.bottom[1], w.bottom[2], w.bottom[3], 1},
-    }, "fan", "static")
-    wallKey = key
-  end
-  love.graphics.setColor(1, 1, 1, 1); love.graphics.draw(wallMesh)
-  local t = love.timer.getTime() * 0.05
-  lg.setBlendMode(kind == "dark" and "add" or "alpha")
-  for k, c in ipairs(w.blobs) do
-    local bx = 640 + math.cos(t * (0.6 + k * 0.17) + k * 1.9) * 520
-    local by = 380 + math.sin(t * (0.5 + k * 0.13) + k * 2.7) * 260
-    local r = 260 + 60 * math.sin(t + k)
-    for i = 1, 10 do -- stacked soft discs fake a heavy blur
-      lg.setColor(c[1], c[2], c[3], kind == "dark" and 0.035 or 0.05)
-      lg.circle("fill", bx, by, r * (1 - i * 0.08), 48)
-    end
-  end
-  lg.setBlendMode("alpha")
-end
-
--- macOS notifications: the newest messages slide in as glass cards top right (replaces the comms ticker)
-function F.macNotifications()
-  local Fo = H.fonts
-  local _, _, x1 = V.extents()
-  local shown = 0
-  for _, t in ipairs(FX.toasts) do
-    if t.life < 4 and not (Set.v.ticker == "important" and t.low) then
-      shown = shown + 1
-      if shown > 2 then break end
-      local w, h = 340, 64
-      local slide = math.min(1, t.life / 0.3)
-      local fade = t.life > 3.4 and math.max(0, (4 - t.life) / 0.6) or 1
-      local x = x1 - w - 14 + (1 - slide) ^ 3 * (w + 30)
-      local y = 58 + (shown - 1) * (h + 8)
-      lg.push("all")
-      V.glassRect(x, y, w, h, 18, C.panel[1], C.panel[2], C.panel[3])
-      -- app icon
-      lg.setColor(t.c[1], t.c[2], t.c[3], fade); lg.rectangle("fill", x + 12, y + 14, 36, 36, 9, 9)
-      lg.setColor(1, 1, 1, 0.25 * fade); lg.rectangle("fill", x + 12, y + 14, 36, 16, 9, 9)
-      I.draw("event", x + 30, y + 32, 7, {1, 1, 1})
-      lg.setFont(Fo.s); col(C.white, fade); lg.print(H.fit(Fo.s, t.title, w - 110), x + 58, y + 12)
-      lg.setFont(Fo.xs); col(C.dim, fade); lg.print(H.fit(Fo.xs, t.text, w - 72), x + 58, y + 36)
-      col(C.dim, 0.8 * fade); lg.printf("now", x, y + 13, w - 14, "right")
-      lg.pop()
-    end
-  end
-end
-
 function F.background()
-  if H.wallpaper then return wallpaper(H.wallpaper) end
-  if H.style then return end -- desktop-app themes: clean background
   local x0, y0, x1, y1 = V.extents()
   -- key light from above the tower, a warm rim from the lower right: the HUD floats in a lit room
   local glow = F.glowMesh()
@@ -254,10 +190,7 @@ function F.topBar()
   local S = G.S
   local Fo = H.fonts
   local x0, _, x1 = V.extents()
-  if H.wallpaper then
-    -- floating glass toolbar
-    V.glassRect(x0 + 4, 3, x1 - x0 - 8, F.TOP - 6, (F.TOP - 6) / 2, C.panel[1], C.panel[2], C.panel[3])
-  elseif H.isHud() then
+  if H.isHud() then
     col(C.bg, 0.94); lg.rectangle("fill", x0, 0, x1 - x0, F.TOP)
     col(C.faint, 1); lg.line(x0, F.TOP, x1, F.TOP)
     col(C.line, 0.6); lg.line(x0, F.TOP, 260, F.TOP) -- the profile corner carries the accent
@@ -266,10 +199,9 @@ function F.topBar()
     col(C.line, 0.45); lg.line(x0, F.TOP, x1, F.TOP)
   end
 
-  -- profile: rank badge with XP ring (mac themes make room for the traffic lights)
-  local mac = H.style == "mac"
-  local bx, by = mac and 84 or 32, 26
-  local tx = mac and 112 or 62
+  -- profile: rank badge with XP ring
+  local bx, by = 32, 26
+  local tx = 62
   local need = G.xpNeed(S.rank)
   local hovP = H.mouseIn(8, 2, 250, 48)
   col(C.panel); lg.circle("fill", bx, by, 20, 32)
@@ -290,23 +222,6 @@ function F.topBar()
     lg.setFont(Fo.xs); lg.print("x" .. S.perkPoints .. " [P]", px + 28, py + 19)
   end
   H.addHit(8, 2, 250, 48, function() if S.perkPoints > 0 then G.openPerkChoice() else FX.play("tick") end end)
-  if mac then
-    -- traffic lights: close (saves and quits), minimize, zoom (fullscreen)
-    local lights = {
-      {{1.00, 0.37, 0.34}, "x", "CLOSE", "Saves and quits the game.", function() love.event.quit() end},
-      {{1.00, 0.74, 0.18}, "-", "MINIMIZE", "Minimizes the window.", function() love.window.minimize() end},
-      {{0.16, 0.79, 0.25}, "+", "ZOOM", "Toggles fullscreen.", function() G.toggleFullscreen() end},
-    }
-    local any = H.mouseIn(8, 14, 54, 24)
-    for k, l in ipairs(lights) do
-      local lx = 18 + (k - 1) * 20
-      lg.setColor(l[1][1], l[1][2], l[1][3]); lg.circle("fill", lx, by, 6.5, 24)
-      lg.setColor(0, 0, 0, 0.18); lg.circle("line", lx, by, 6.5, 24)
-      if any then lg.setFont(Fo.xs); lg.setColor(0, 0, 0, 0.6); lg.printf(l[2], lx - 6, by - 7, 12, "center") end
-      if H.mouseIn(lx - 8, by - 8, 16, 16) then H.setTip(l[3], l[4]) end
-      H.addHit(lx - 8, by - 8, 16, 16, l[5])
-    end
-  end
 
   -- currencies
   local cps = G.getCps()
@@ -390,60 +305,6 @@ end
 ----------------------------------------------------------------------
 -- bottom dock
 ----------------------------------------------------------------------
--- macOS style: a floating, frosted Dock with app tiles that magnify toward the cursor
-local DOCK_TILE = {
-  {0.04, 0.52, 1.00}, {1.00, 0.58, 0.00}, {0.20, 0.78, 0.35}, {0.35, 0.34, 0.84},
-  {1.00, 0.23, 0.19}, {0.69, 0.32, 0.87}, {0.56, 0.56, 0.58}, {0.35, 0.78, 0.98},
-}
-function F.macDock()
-  local Fo = H.fonts
-  local y = F.DOCK
-  local badges = F.badges()
-  local n = #F.SCENES
-  local slotW, base = 64, 44
-  local dw = n * slotW + 20
-  local dx, dy = 640 - dw / 2, y + 8
-  local mx, my = V.mouse()
-  local inDock = my >= dy - 30 and my <= y + 64 and mx >= dx - 30 and mx <= dx + dw + 30 and not G.modal
-  V.glassRect(dx, dy, dw, 54, 22, C.panel[1], C.panel[2], C.panel[3])
-  local hovered
-  for k, s in ipairs(F.SCENES) do
-    local key = s[1]
-    local cx = dx + 10 + (k - 0.5) * slotW
-    local mag = inDock and math.max(0, 1 - math.abs(mx - cx) / 130) or 0
-    local sz = base * (1 + 0.5 * mag * mag)
-    local cy = dy + 27 - (sz - base) * 0.9
-    local open, need = G.unlocked(key)
-    local tc = open and DOCK_TILE[(k - 1) % #DOCK_TILE + 1] or {0.6, 0.6, 0.62}
-    -- tile with a soft top sheen
-    lg.setColor(0, 0, 0, 0.15); lg.rectangle("fill", cx - sz / 2, cy - sz / 2 + 2, sz, sz, sz * 0.24, sz * 0.24)
-    lg.setColor(tc[1], tc[2], tc[3], open and 1 or 0.6); lg.rectangle("fill", cx - sz / 2, cy - sz / 2, sz, sz, sz * 0.24, sz * 0.24)
-    lg.setColor(1, 1, 1, 0.18); lg.rectangle("fill", cx - sz / 2, cy - sz / 2, sz, sz * 0.45, sz * 0.24, sz * 0.24)
-    I.draw(open and s[3] or "lock", cx, cy, sz * 0.22, {1, 1, 1})
-    if G.tab == key then col(C.white, 0.75); lg.circle("fill", cx, dy + 51, 2.2, 10) end
-    if open and badges[key] and badges[key][1] > 0 then H.badge(cx + sz / 2 - 4, cy - sz / 2 + 4, badges[key][1], C.red) end
-    if inDock and math.abs(mx - cx) < slotW / 2 then hovered = {cx = cx, top = cy - sz / 2, name = open and s[2] or (need .. " LOGS")} end
-    H.addHit(cx - slotW / 2, dy, slotW, 56, function()
-      if not open then
-        FX.toast(s[2] .. " // LOCKED", "Collect " .. need .. " log entries to unlock (" .. G.achCount .. "/" .. need .. ").", C.red)
-        FX.play("err")
-        return
-      end
-      G.tab = key
-      FX.play("tap", 1.6, 0.4)
-    end)
-  end
-  -- name bubble above the hovered app, like the real Dock
-  if hovered then
-    lg.setFont(Fo.s)
-    local w = Fo.s:getWidth(hovered.name) + 20
-    local bx, by = hovered.cx - w / 2, hovered.top - 32
-    col(C.panel, 0.95); lg.rectangle("fill", bx, by, w, 24, 6, 6)
-    col(C.dim, 0.4); lg.rectangle("line", bx + 0.5, by + 0.5, w - 1, 23, 6, 6)
-    col(C.white); lg.printf(hovered.name, bx, by + 4, w, "center")
-  end
-end
-
 -- THE SPINE: the tower's stations on one transit line. Each station reports what is happening there right now,
 -- so you know where to go before you go. The active marker travels along the line when you switch.
 -- level: "alert" (red, act now), "attn" (amber, something to collect), nil (calm readout)
@@ -574,7 +435,6 @@ local function hudDock()
 end
 
 function F.dock()
-  if H.style == "mac" then return F.macDock() end
   if H.isHud() then return hudDock() end
   local Fo = H.fonts
   local x0, _, x1, y1 = V.extents()
@@ -630,7 +490,6 @@ end
 -- comms ticker: a single strip above the dock (never covers content)
 F.TICKER = 636
 function F.toasts()
-  if H.style == "mac" then return F.macNotifications() end
   local Fo = H.fonts
   local x0, _, x1 = V.extents()
   local y, h = F.TICKER, F.DOCK - F.TICKER

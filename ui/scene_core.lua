@@ -56,7 +56,7 @@ local function hero()
   local sy = hud and 150 or 134
   if sat < 0.999 then
     local pct = sat * 100
-    local txt = "REACTOR SATURATION  //  OUTPUT AT " .. (pct >= 1 and string.format("%d%%", pct) or string.format("%.2g%%", pct)) .. "  //  REBOOT TO RESET"
+    local txt = "REACTOR SATURATION  //  OUTPUT AT " .. (pct >= 1 and string.format("%d%%", pct) or (pct >= 0.01 and string.format("%.2g%%", pct) or "<0.01%")) .. "  //  REBOOT TO RESET"
     local pulse = 0.6 + 0.4 * math.sin(G.time * 4)
     local tw = Fo.xs:getWidth(txt) + 24
     local hov = H.mouseIn(640 - tw / 2, sy, tw, 18)

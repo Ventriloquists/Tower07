@@ -228,9 +228,6 @@ D.PERK_GRADE = {
 
 D.RANK_TITLES = {{1, "TRAINEE"}, {5, "TECHNICIAN"}, {10, "SR TECHNICIAN"}, {20, "SUPERVISOR"}, {35, "COMMANDER"},
   {50, "DIRECTOR"}, {75, "ARCHITECT"}, {100, "OVERSEER"}, {150, "ASCENDANT"}}
--- meme themes only
-D.RANK_TITLES_MEME = {{200, "SIGMA TECHNICIAN"}, {300, "GIGACHAD"}, {420, "BLAZE IT TECHNICIAN"}, {500, "TOUCH GRASS CANDIDATE"},
-  {690, "NICE"}, {1000, "NO LIFER"}, {9001, "OVER 9000"}}
 
 ----------------------------------------------------------------------
 -- Timed world events
@@ -369,7 +366,6 @@ do
   series("HP", "Prismatic", "Open %s PRISMATIC crates", "prismatic", {1, 10})
   series("FG", "Forgemaster", "Fuse modules to a higher item level %s times", "forged", {1, 25, 250})
   series("PM", "Ascension", "Promote modules to a higher rarity %s times", "promoted", {1, 10, 50})
-  series("RS", "In Memoriam", "Honor %s fallen drones", "respects", {1, 10, 100})
 end
 
 return D

@@ -444,24 +444,18 @@ local CALL_A = {"GHOST", "VIPER", "NOMAD", "RAVEN", "WARDEN", "ECHO", "SPECTER",
   "MANTIS", "WRAITH", "COBALT", "EMBER", "ONYX", "SIGNAL", "DRIFTER", "TALON", "BEACON", "CINDER", "VESPER",
   "ORBIT", "STATIC", "TEMPEST", "QUILL", "MERIDIAN", "SENTRY", "LANTERN", "CIPHER", "HUSK", "MOTH", "SABLE",
   "PILGRIM", "ARGUS", "VECTOR", "RELIC", "JUNO", "ATLAS", "TIDE", "SPARROW"}
-local MEME_A = {"DOGE", "SANIC", "STONKS", "BONK", "CHUNGUS", "YEET", "POGGERS", "SUS", "SHREK", "UGANDA", "KEANU", "HARAMBE"}
 local CALL_B = {"PRIME", "ZERO", "NINE", "ASCENDANT", "SOVEREIGN", "ETERNAL", "OMEGA", "REX", "MAXIMUS", "INFINITE"}
-local MEME_B = {"THE SUS", "EZ", "IRL", "XD", "OF DOOM", "DELUXE", "9000"}
--- meme themes mix in meme callsigns; everywhere else the names stay serious
-local function pick(list, meme)
-  if G.memeOn and love.math.random() < 0.35 then return meme[love.math.random(#meme)] end
-  return list[love.math.random(#list)]
-end
+local function pick(list) return list[love.math.random(#list)] end
 function G.droneName()
   local used = {}
   for _, d in ipairs(S.drones) do if d.name then used[d.name] = true end end
   for _ = 1, 30 do
-    local n = pick(CALL_A, MEME_A)
+    local n = pick(CALL_A)
     if not used[n] then return n end
   end
   return CALL_A[love.math.random(#CALL_A)] .. "-" .. love.math.random(2, 9)
 end
-function G.grandName(n) return n .. " " .. pick(CALL_B, MEME_B) end
+function G.grandName(n) return n .. " " .. pick(CALL_B) end
 function G.nameFor(r)
   local n = G.droneName()
   if r >= 4 then n = G.grandName(n) end
@@ -534,7 +528,6 @@ function G.fabricate(n, useToken)
   end
   if made == 0 then
     FX.play("err")
-    if G.meme and #S.drones + #G.choiceQueue >= G.bayCap() then G.meme("bayFull") end
   else G.addXP(20 * made) end
   return made
 end
@@ -667,7 +660,7 @@ function G.claimCell(i)
   local th = G.baseThreat(i)
   G.addXP(30 + th * 5)
   -- radiation sectors take twice as long but may cough up a crate (35%)
-  if G.isRadiation and G.isRadiation(i) and G.dropCrate and love.math.random() < 0.35 then
+  if G.isRadiation and G.isRadiation(i) and G.dropCrate and love.math.random() < 0.35 and G.crateBudgetOk() then
     G.dropCrate(x, y, G.rollTier(math.min(5, 2 + math.floor(S.zone / 2))))
     if G.addFeed then G.addFeed("RADIATION SECTOR " .. G.cellName(i) .. " // EXTRA CRATE", C.gold) end
   end
@@ -1063,7 +1056,6 @@ end
 -- Tapping
 ----------------------------------------------------------------------
 function G.jackpot(x, y)
-  if G.meme then G.meme("jackpot") end
   local e = math.max(1000, G.getCps() * 1800)
   G.gain(e)
   S.hydro = S.hydro + 10 + S.rank
@@ -1101,7 +1093,6 @@ function G.heatUpdate(dt)
     if G.sweetT >= G.RHYTHM_TIME then
       G.sweetT = 0
       S.rhythms = (S.rhythms or 0) + 1
-      if G.meme then G.meme("rhythm") end
       if not G.hasBuff("CORE SURGE") then G.addBuff("CORE SURGE", "prod", 3, 15 + 3 * G.tr("core_surge")) end
       FX.toast("PERFECT RHYTHM", "12 seconds in the sweet spot: Core Surge ignited. Output x3 for 15s.", C.gold)
       FX.play("surge", 1.2)
@@ -1124,7 +1115,6 @@ function G.tap(x, y, auto, count)
     if G.heat >= 1 then
       G.heat, G.overheatT, G.combo = 1, G.OVERHEAT_TIME, 0
       S.overheats = (S.overheats or 0) + 1
-      if G.meme then G.meme("overheat") end
       FX.toast("CORE OVERHEAT", "Taps locked for " .. G.OVERHEAT_TIME .. "s while the coolant vents. Keep the heat in the gold zone.", C.red)
       FX.play("raid", 1.4, 0.8)
       FX.shake = math.max(FX.shake, 12)
@@ -1438,7 +1428,6 @@ function G.runCharge() return math.min(1, (S.runTime or 0) / G.RUN_CHARGE) end
 function G.dmCap() return math.max(25, 2 * S.dmTotal * G.runCharge()) end
 function G.dmGain() return math.max(0, math.min(G.dmPotential() - S.dmTotal, G.dmCap())) end
 function G.doReboot()
-  if G.meme then G.meme("reboot") end
   local g = G.dmGain()
   if g < 1 then return end
   S.dm, S.dmTotal = S.dm + g, S.dmTotal + g
@@ -1760,7 +1749,6 @@ function G.update(dt)
   if G.tacUpdate then G.tacUpdate(dt) end
   if G.metaUpdate then G.metaUpdate(dt) end
   if G.fiestaUpdate then G.fiestaUpdate(dt) end
-  if G.memeOn and not S.over9000 and G.getCps() > 9000 then S.over9000 = true; G.meme("over9000") end
   if G.autopilotUpdate then G.autopilotUpdate(dt) end
   G.heatUpdate(dt)
 

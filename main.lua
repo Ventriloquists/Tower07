@@ -20,8 +20,6 @@ local Th = require "ui.themes"
 local F = require "ui.frame"
 local Ov = require "ui.overlays"
 local Shatter = require "ui.shatter"
-local Memes = require "game.memes"
-G.meme = Memes.event
 local SettingsUI = require "ui.settings"
 local Disguise = require "ui.disguise"
 local Reactor = require "ui.reactor"
@@ -105,14 +103,6 @@ local function applySettings(key)
   G.saveInterval = v.autosave
   G.breakInterval = v.grass * 60
   Th.apply(v.theme)
-  -- memes live only inside the meme themes: sounds, captions, chatter, titles, callsigns
-  local th = Th.get(v.theme)
-  local memeTheme = th.sounds == "meme"
-  G.memeOn = memeTheme
-  FX.meme = memeTheme and not Memes.available() -- synth meme loot sounds only as a fallback without the sounds folder
-  if FX.soundPack ~= "stupid" and memeTheme and Memes.available() then FX.soundPack = "meme" end
-  Memes.enabled = memeTheme
-  Memes.captionsOn = memeTheme and v.memeCaptions ~= false
   love.mouse.setVisible((not v.reticle) or G.bossMode == true)
   lastVolume = nil
   applyVolume()
@@ -472,6 +462,16 @@ local function runSelftest()
   if f == 207 then G.tab = "map" end
   if f == 209 then shot("station_map") end
   if f == 210 then G.tab = "core"; FX.locks = {} end
+  -- README screenshot: the CORE screen clean (no banners, loot readouts, floaters or particles), reactor mid-play
+  if f == 211 then G.stagedTotal = G.S.dmTotal; G.S.dmTotal = 2e8; G.recalc() end -- below the saturation line for the shot
+  if f >= 211 and f <= 214 then
+    FX.waves, FX.rays, FX.slams, FX.locks, FX.floaters, FX.particles = {}, {}, {}, {}, {}, {}
+    FX.prism, FX.frame, FX.flash, FX.shake = nil, nil, 0, 0
+    G.rankBanner, G._banner, G.bannerQueue, G.signal, V.fakeMouse = nil, nil, {}, nil, nil
+    G.heat, G.overheatT, G.surge, G.combo, G.sweetT = 0.86, 0, 0.62, 30, 6
+  end
+  if f == 215 then shot("readme") end
+  if f == 216 then G.S.dmTotal = G.stagedTotal; G.recalc() end
   if f == 194 then
     -- COLLECT ALL: queue every instant reward, drain the cascade, nothing claimable may remain
     local before = #G.collectables()
@@ -792,22 +792,10 @@ local function runSelftest()
     local d = G.makeDrone(6); G.addDrone(d); G.hangarSel = d.id
   end
   if f == 751 then shot("prism_drone_card") end
-  -- desktop-app themes
-  if f == 752 then FX.prism, FX.rays, FX.particles = nil, {}, {}; Set.v.theme = "macos"; applySettings("theme"); G.tab = "core" end
-  if f == 754 then shot("theme_macos_core") end
-  if f == 755 then Set.v.theme = "win11"; applySettings("theme"); G.tab = "hangar" end
-  if f == 757 then shot("theme_win11_hangar") end
-  if f == 758 then Set.v.theme = "macdark"; applySettings("theme"); G.tab = "map" end
-  if f == 759 then shot("theme_macdark_map") end
-  -- social + silly themes
-  if f == 760 then G.rankBanner, G._banner, G.bannerQueue = nil, nil, {}; Set.v.theme = "youtube"; applySettings("theme"); G.tab = "core" end
-  if f == 762 then shot("theme_youtube_core") end
-  if f == 763 then Set.v.theme = "reddit"; applySettings("theme"); G.tab = "hangar" end
-  if f == 765 then shot("theme_reddit_hangar") end
-  if f == 766 then Set.v.theme = "twitter"; applySettings("theme"); G.tab = "map" end
-  if f == 768 then shot("theme_twitter_map") end
-  if f == 769 then Set.v.theme = "macos"; applySettings("theme"); G.tab = "hangar"; V.fakeMouse = {520, 690} end
-  if f == 772 then shot("theme_macos_dock") end
+  -- clear effects before the theme checks
+  if f == 752 then FX.prism, FX.rays, FX.particles = nil, {}, {}; G.tab = "core" end
+  -- silly themes
+  if f == 760 then G.rankBanner, G._banner, G.bannerQueue = nil, nil, {}; G.tab = "core" end
   if f == 773 then V.fakeMouse = nil; Set.v.theme = "australia"; applySettings("theme"); G.tab = "core" end
   if f == 775 then shot("theme_australia") end
   if f == 776 then Set.v.theme = "dvd"; applySettings("theme") end
@@ -821,23 +809,11 @@ local function runSelftest()
   end
   if f == 779 then shot("theme_dvd") end
   if f == 781 then Set.v.theme = "command"; applySettings("theme") end
-  -- meme pack
+  -- release hygiene: no third-party audio (meme pack) and no brand look-alike app themes may come back
   if f == 782 then
-    Set.v.theme = "mlg"; applySettings("theme"); G.tab = "core"
-    local played = Memes.play("triple", 0.01, 0)
-    Memes.caps = {}; Memes.resetCaption()
-    G.meme("overheat")
-    G.selftestMemes = (Memes.available() and played and FX.soundPack == "meme" and #Memes.caps == 1) and "memes-ok" or
-      string.format("memes-FAIL avail=%s played=%s pack=%s caps=%d", tostring(Memes.available()), tostring(played), tostring(FX.soundPack), #Memes.caps)
-    Memes.hitmarker(640, 344)
-  end
-  if f == 784 then shot("theme_mlg_caption") end
-  if f == 785 then Set.v.theme = "doge"; applySettings("theme"); for _ = 1, 4 do Memes.update(1.2) end end
-  if f == 787 then shot("theme_doge") end
-  if f == 788 then
-    Memes.caps = {}; Set.v.theme = "command"; applySettings("theme")
-    Memes.resetCaption(); G.meme("overheat")
-    if #Memes.caps > 0 or FX.soundPack == "meme" or G.memeOn or G.rankTitle(9999):find("9000") then G.selftestMemes = "memes-LEAK" end
+    local bad = 0
+    for _, t in ipairs(Th.LIST) do if t.sounds == "meme" or t.memeFX or t.style or t.glass or t.liquid then bad = bad + 1 end end
+    G.selftestMemes = (bad == 0 and not love.filesystem.getInfo("sounds") and not G.meme) and "nomemes-ok" or ("nomemes-FAIL themes=" .. bad)
   end
   if f == 790 then
     love.filesystem.write("selftest_result.txt", "OK " .. H.fmt(G.S.totalEarned) .. " logs=" .. G.achCount .. "/" .. #D.ACH ..
@@ -867,7 +843,6 @@ function love.update(dt)
   H.updateHolo(love.timer.getTime())
   Th.animate(love.timer.getTime())
   Shatter.update(dt)
-  Memes.update(dt)
   applyVolume()
   if G.bossMode then bossT = bossT + dt end
 
@@ -1025,7 +1000,6 @@ function love.draw()
   -- particles go over card reveals, but under the settings screen
   if G.settingsOpen then FX.drawParticles(); Ov.draw() else Ov.draw(); FX.drawParticles() end
   FX.drawPrism()
-  Memes.draw()
   local isNapping = napping() or G.forceNap
   if isNapping then drawNap() end
   if Set.v.showFps then
@@ -1063,7 +1037,6 @@ function love.mousepressed(sx, sy, b)
   if wake() then return end -- the waking click is swallowed
   if G.bossMode or b ~= 1 then return end
   local x, y = V.toVirtual(sx, sy)
-  Memes.hitmarker(x, y)
   if Ov.isModal() then
     local h = H.click(x, y)
     if h and h.hold == "drag" then dragHit = h end
@@ -1121,7 +1094,6 @@ function love.keypressed(k)
   end
   if G.bossMode then return end
   if k == "f11" or (k == "return" and love.keyboard.isDown("lalt", "ralt")) then toggleFullscreen() return end
-  if k == "f" and Memes.pressF(G.S) then return end
   -- panic button for the cursed themes: F9 always restores the default palette
   if k == "f9" then Set.v.theme = "command"; Set.save(); applySettings("theme"); FX.toast("THEME RESET", "Back to COMMAND. Your eyes thank you.", H.C.line) return end
   -- keyboard focus works on every screen and modal: TAB / SHIFT+TAB to move, ENTER to press

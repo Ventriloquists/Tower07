@@ -276,8 +276,18 @@ function G.rollTier(min)
   return t
 end
 
+-- crate budget: random drops (kills, radiation sectors) pause once 8 crates fell in the last minute, so a
+-- maxed fleet clearing a zone a minute does not flood the map. Guaranteed crates always drop.
+G.CRATE_BUDGET = 8
+local crateTimes = {}
+function G.crateBudgetOk()
+  local now = G.time or 0
+  for k = #crateTimes, 1, -1 do if now - crateTimes[k] > 60 then table.remove(crateTimes, k) end end
+  return #crateTimes < G.CRATE_BUDGET
+end
 function G.dropCrate(x, y, tier)
   local S = G.S
+  crateTimes[#crateTimes + 1] = G.time or 0
   table.insert(S.crateList, {x = clamp(x, 1, G.MW), y = clamp(y, 1, G.MH), r = tier, t = 0})
   if tier >= 4 then
     FX.play("crate", 0.8)
@@ -356,7 +366,6 @@ function G.openCrate(k, quiet, sx, sy)
   for _, l in ipairs(lines) do if l ~= head and #rest < 3 then rest[#rest + 1] = l end end
   local isPrism = c.r >= 7 or prismDrone
   FX.lock(px, py, isPrism and 7 or c.r, col, L.name .. " CACHE", head, {lines = rest, map = true})
-  if G.meme and c.r == 5 then G.meme("legendary") elseif G.meme and c.r == 6 then G.meme("mythic") end
   if isPrism then FX.prismEvent(prismDrone and "PRISM" or L.name, px, py)
   elseif c.r == 6 then FX.lootSound(2)
   elseif c.r == 5 then FX.lootSound(1)
@@ -431,7 +440,6 @@ function G.spawnEnemy(kind)
     dps = def.dps * F, code = string.format("%02d %03d", love.math.random(10, 99), love.math.random(0, 999)),
     raid = 0, flash = 0, wob = rnd(0, 6)}
   table.insert(G.enemies, e)
-  if def.boss and G.meme then G.meme("bossSpawn") end
   if def.boss then
     e.bounty = G.BOUNTY_TIME + 60 * G.tr("map_bounty")
     G.rankBanner = {t = 0, title = "MOTHERSHIP INBOUND", text = "Destroy it within " .. H.fmtTime(G.BOUNTY_TIME) .. " for the BOUNTY: a LEGENDARY crate + 3 fab tokens.", c = C.red}
@@ -462,7 +470,7 @@ function G.killEnemy(e)
   G.addXP(e.def.xp)
   -- one crate at most per kill; bigger scavs are more likely to carry one
   local chance = (G.KILL_CRATE[e.def.id] or 0.3) + 0.05 * G.tr("sv_crate")
-  if love.math.random() < chance then G.dropCrate(e.x + rnd(-0.4, 0.4), e.y + rnd(-0.4, 0.4), G.rollTier(e.def.tier)) end
+  if love.math.random() < chance and (e.def.boss or G.crateBudgetOk()) then G.dropCrate(e.x + rnd(-0.4, 0.4), e.y + rnd(-0.4, 0.4), G.rollTier(e.def.tier)) end
   local px, py = G.toPx(e.x, e.y)
   local big = e.def.boss and 3 or (e.def.tier >= 3 and 2 or 1)
   if onMap() then
@@ -475,7 +483,6 @@ function G.killEnemy(e)
   if e.def.boss then
     S.bosses = S.bosses + 1
     S.bossDown = true
-    if G.meme then G.meme((e.bounty or 0) > 0 and "bounty" or "bossKill") end
     if (e.bounty or 0) > 0 then
       S.bounties = (S.bounties or 0) + 1
       S.tokens = S.tokens + 3
@@ -528,7 +535,6 @@ end
 function G.advanceZone()
   local S = G.S
   if not S.bossDown then FX.play("err") return end
-  if G.meme then G.meme("zoneClear") end
   S.zone = S.zone + 1
   G.newMap()
   G.recalc()
@@ -629,7 +635,6 @@ function G.tetStrike()
   if not G.tetReady() or not t then FX.play("err") return end
   S.tetCharge = 0
   S.tetStrikes = (S.tetStrikes or 0) + 1
-  if G.meme then G.meme("tet") end
   local tx, ty = t.x, t.y
   local hit = 0
   for k = #G.enemies, 1, -1 do
@@ -818,7 +823,6 @@ function G.tacUpdate(dt)
         d.hp = d.hp - per
         if d.hp <= 0 then
           d.down = now + (S.pupg.repair and 14 or 40)
-          if G.meme then G.meme("mia") end
           d.hunt = nil
           d.hp = G.droneMaxHp(d)
           if onMap() then

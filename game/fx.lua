@@ -114,27 +114,6 @@ function FX.init()
     local sub = math.sin(TAU * (40 + 25 * p) * t) * 0.4 * math.sin(math.pi * math.min(1, p * 2))
     return (arp * (0.6 + 0.4 * math.sin(TAU * 7 * t)) + chord + sub) * math.min(1, p * 30) * (1 - p) ^ 0.6 * 0.7
   end)
-  -- meme pack (Settings > Audio > MEME LOOT SOUNDS)
-  s.vineboom = synth(1.3, function(t, p)
-    local v = math.sin(TAU * (58 - 22 * p) * t) * 1.1 + math.sin(TAU * (116 - 40 * p) * t) * 0.35
-    v = v + (love.math.random() * 2 - 1) * (1 - p) ^ 10 * 0.6
-    return clamp(v * 1.6, -1, 1) * (1 - p) ^ 1.6 * 0.75
-  end)
-  s.airhorn = synth(1.5, function(t, p)
-    local on = (t < 0.34) or (t > 0.42 and t < 0.56) or (t > 0.64 and t < 1.45)
-    if not on then return 0 end
-    local bend = t < 0.05 and (0.94 + t) or 1
-    local saw = function(f) local x = f * t * bend return 2 * (x - math.floor(x)) - 1 end
-    local v = saw(466) * 0.4 + saw(470) * 0.35 + saw(932) * 0.2 + saw(699) * 0.15
-    return clamp(v * 1.8, -1, 1) * 0.28
-  end)
-  s.illuminati = synth(2.6, function(t, p)
-    local mel = {659, 880, 784, 880, 1047, 880, 784, 659}
-    local k = math.min(#mel, math.floor(t / 0.32) + 1)
-    local f = mel[k] * (1 + 0.012 * math.sin(TAU * 5.5 * t))
-    local v = math.sin(TAU * f * t) * 0.6 + math.sin(TAU * f * 2.01 * t) * 0.15 + math.sin(TAU * 110 * t) * 0.2
-    return v * (1 - p) ^ 0.5 * math.min(1, p * 20) * 0.32
-  end)
   ------------------------------------------------------------------ stupid pack (cursed themes)
   local function saw(x) return 2 * (x - math.floor(x)) - 1 end
   local function sq(x) return (x - math.floor(x)) < 0.5 and 1 or -1 end
@@ -256,12 +235,10 @@ local STUPID = {
   tap = "quack", tick = "squeak", buy = "boing", err = "fart", hit = "bonk", laser = "squeak", boom = "bonk",
   alert = "honk", raid = "honk", signal = "dialup", catch = "slidewhistle", collect = "slidewhistle", surge = "slidewhistle",
   log = "kazoo", rank = "kazoo", unlock = "kazoo", jackpot = "kazoo", mythic = "kazoo", prism = "kazoo", crate = "boing",
-  reboot = "sadtrombone", crack = "bonk", shatter = "sadtrombone", slam = "bruh", vineboom = "bruh", airhorn = "honk",
-  illuminati = "kazoo",
+  reboot = "sadtrombone", crack = "bonk", shatter = "sadtrombone", slam = "bruh",
 }
 function FX.play(name, pitch, vol)
   local orig = name
-  if FX.soundPack == "meme" and FX.memeHook and FX.memeHook(name) then return end
   if FX.soundPack == "stupid" and STUPID[name] then
     name = STUPID[name]
     pitch = (pitch or 1) * (0.85 + love.math.random() * 0.35)
@@ -344,25 +321,18 @@ function FX.ray(x, y, c, life, size, prism)
     FX.spark(x + rnd(-size * 0.06, size * 0.06), y + rnd(-6, 6), rnd(-25, 25), -rnd(80, 260 + size * 0.3), c, rnd(0.7, 1.6), rnd(1.5, 3))
   end
 end
--- special loot sounds: tier 1 = LEGENDARY / PROTO, 2 = MYTHIC / OMEGA, 3 = PRISM. FX.meme swaps in the meme pack.
-FX.meme = false
+-- special loot sounds: tier 1 = LEGENDARY / PROTO, 2 = MYTHIC / OMEGA, 3 = PRISM
 function FX.lootSound(tier)
-  if FX.meme then
-    if tier == 1 then FX.play("vineboom")
-    elseif tier == 2 then FX.play("airhorn")
-    else FX.play("airhorn", 0.9); FX.play("illuminati"); FX.play("vineboom", 0.8) end
-  else
-    if tier == 1 then FX.play("jackpot")
-    elseif tier == 2 then FX.play("mythic")
-    else FX.play("prism"); FX.play("mythic", 0.8, 0.6) end
-  end
+  if tier == 1 then FX.play("jackpot")
+  elseif tier == 2 then FX.play("mythic")
+  else FX.play("prism"); FX.play("mythic", 0.8, 0.6) end
 end
 
 -- jackpot moment: slam title + chip fountain + a beat of slow motion
 FX.slams, FX.slow = {}, 0
 function FX.slam(text, x, y, c, prism)
   FX.slams[#FX.slams + 1] = {text = text, x = x, y = y, c = c, t = 0, max = 1.8, prism = prism}
-  FX.play(FX.meme and "vineboom" or "slam", prism and 0.8 or 1)
+  FX.play("slam", prism and 0.8 or 1)
   FX.shake = math.max(FX.shake, prism and 22 or 10)
   if not FX.reduced then FX.slow = math.max(FX.slow, prism and 0.35 or 0.1) end
   local P = FX.particles

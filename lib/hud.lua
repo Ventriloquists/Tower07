@@ -580,25 +580,6 @@ function H.button(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold)
   local hov = enabled and H.mouseIn(x, y, w, h, clip)
   c = c or C.line
   font = font or H.fonts.s
-  if H.style == "mac" then
-    -- macOS 26 capsules: tinted solid for the main action, glass for everything else
-    local r = math.min(h / 2, 20)
-    if primary and enabled then
-      col(c, hov and 1 or 0.92); lg.rectangle("fill", x, y, w, h, r, r)
-      lg.setColor(1, 1, 1, hov and 0.32 or 0.22); lg.rectangle("fill", x + 1, y + 1, w - 2, h * 0.48, r, r)
-      lg.setFont(font); lg.setColor(1, 1, 1)
-    else
-      local dark = H.macDark
-      lg.setColor(1, 1, 1, dark and (hov and 0.16 or 0.08) or (hov and 0.75 or 0.5)); lg.rectangle("fill", x, y, w, h, r, r)
-      lg.setColor(1, 1, 1, dark and 0.18 or 0.8); lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1, r, r)
-      lg.setFont(font)
-      col(enabled and (hov and C.white or c) or C.faint)
-    end
-    lg.printf(text, x, y + h / 2 - font:getHeight() / 2, w, "center")
-    local hit = H.addHit(x, y, w, h, function() if enabled then fn() else H.onError() end end, clip, hold)
-    if hit then hit.disabled = not enabled end
-    return
-  end
   if hud() then return H.hudButton(x, y, w, h, text, enabled, fn, c, font, clip, primary, hold, hov) end
   if primary and enabled then
     -- filled call-to-action with a soft pulse

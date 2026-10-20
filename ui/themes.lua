@@ -1,32 +1,7 @@
 -- Color schemes. Applying one mutates the shared palette (H.C) in place, so every screen follows.
 local H = require "lib.hud"
 local V = require "lib.view"
-local Glass = require "lib.glass"
 
--- sentence-style text for desktop themes: "ENERGY" -> "Energy". Short codes (XP, MK1, H2O, 1.2K) stay as they are.
-local caseCache, caseN = {}, 0
-local SMALL = {}
-for w in ("IN TO UP OF AT ON OR BY IS IT AN AS NO BE DO GO IF MY SO WE US AM A"):gmatch("%a+") do SMALL[w] = true end
-local function titleCase(s)
-  local c = caseCache[s]
-  if c then return c end
-  local first = true
-  c = s:gsub("%w+", function(w)
-    local wasFirst = first
-    first = false
-    if w:find("%d") or w:find("%l") then return w end
-    if #w <= 2 then
-      -- small English words read better lowercase; codes like XP, MK, CD, LV stay as they are
-      if SMALL[w] then return wasFirst and (w:sub(1, 1) .. w:sub(2):lower()) or w:lower() end
-      return w
-    end
-    return w:sub(1, 1) .. w:sub(2):lower()
-  end)
-  caseN = caseN + 1
-  if caseN > 4000 then caseCache, caseN = {}, 0 end
-  caseCache[s] = c
-  return c
-end
 local T = {}
 
 T.LIST = {
@@ -111,30 +86,6 @@ T.LIST = {
     bg = {0.06, 0.22, 0.06}, panel = {0.19, 0.38, 0.19}, line = {0.61, 0.74, 0.06}, white = {0.80, 0.86, 0.45},
     dim = {0.55, 0.67, 0.06}, faint = {0.19, 0.38, 0.19}, red = {0.80, 0.86, 0.45}, orange = {0.70, 0.80, 0.30},
     teal = {0.19, 0.38, 0.19}, sea = {0.10, 0.28, 0.10}, gold = {0.85, 0.92, 0.55}}},
-  ---------------------------------------------------------------- desktop apps (rounded UI, system font)
-  {id = "macos", name = "macOS TAHOE", desc = "Liquid Glass. Floating toolbar, glass Dock, notifications.", style = "mac", font = "SegUIVar.ttf", round = 18, titleCase = true,
-    liquid = {alpha = 0.55, sheen = 0.14, edge = 0.75}, wallpaper = "light", c = {
-    bg = {0.925, 0.925, 0.93}, panel = {1, 1, 1}, line = {0.00, 0.478, 1.00}, white = {0.114, 0.114, 0.122},
-    dim = {0.525, 0.525, 0.545}, faint = {0.824, 0.824, 0.843}, red = {1.00, 0.231, 0.188}, orange = {1.00, 0.584, 0.00},
-    teal = {0.62, 0.84, 0.98}, sea = {0.86, 0.92, 0.98}, gold = {1.00, 0.80, 0.00}}},
-  {id = "macdark", name = "macOS TAHOE DARK", desc = "Liquid Glass after dark. Still expensive.", style = "mac", font = "SegUIVar.ttf", round = 18, titleCase = true,
-    liquid = {alpha = 0.55, sheen = 0.07, edge = 0.25, dark = true}, wallpaper = "dark", c = {
-    bg = {0.118, 0.118, 0.118}, panel = {0.173, 0.173, 0.18}, line = {0.039, 0.518, 1.00}, white = {0.96, 0.96, 0.97},
-    dim = {0.596, 0.596, 0.616}, faint = {0.227, 0.227, 0.235}, red = {1.00, 0.271, 0.227}, orange = {1.00, 0.624, 0.039},
-    teal = {0.18, 0.42, 0.58}, sea = {0.11, 0.11, 0.118}, gold = {1.00, 0.839, 0.039}}},
-  {id = "macglass", name = "macOS GLASS", desc = "See-through window: your desktop shows behind the HUD (Windows). [F9 escapes]",
-    style = "mac", font = "SegUIVar.ttf", round = 18, shadow = true, titleCase = true, glass = 0.94, c = {
-    bg = {12 / 255, 12 / 255, 16 / 255}, panel = {0.15, 0.15, 0.17}, line = {0.35, 0.68, 1.00}, white = {1, 1, 1},
-    dim = {0.78, 0.78, 0.82}, faint = {0.32, 0.32, 0.36}, red = {1.00, 0.33, 0.30}, orange = {1.00, 0.66, 0.12},
-    teal = {0.20, 0.42, 0.62}, sea = {0.16, 0.18, 0.22}, gold = {1.00, 0.86, 0.20}}},
-  {id = "win11", name = "WINDOWS 11", desc = "Mica, Segoe UI and a blue accent. Update and restart?", style = "win", font = "segoeui.ttf", round = 6, shadow = true, titleCase = true, c = {
-    bg = {0.953, 0.953, 0.953}, panel = {0.985, 0.985, 0.985}, line = {0.00, 0.40, 0.75}, white = {0.10, 0.10, 0.10},
-    dim = {0.38, 0.38, 0.38}, faint = {0.85, 0.85, 0.85}, red = {0.77, 0.17, 0.11}, orange = {0.85, 0.45, 0.00},
-    teal = {0.70, 0.83, 0.95}, sea = {0.85, 0.90, 0.96}, gold = {0.80, 0.60, 0.00}}},
-  {id = "win11dark", name = "WINDOWS 11 DARK", desc = "Dark Mica. Still asking you to update.", style = "win", font = "segoeui.ttf", round = 6, shadow = true, titleCase = true, c = {
-    bg = {0.125, 0.125, 0.125}, panel = {0.17, 0.17, 0.17}, line = {0.30, 0.65, 1.00}, white = {1, 1, 1},
-    dim = {0.65, 0.65, 0.65}, faint = {0.28, 0.28, 0.28}, red = {1.00, 0.35, 0.30}, orange = {1.00, 0.70, 0.25},
-    teal = {0.10, 0.30, 0.50}, sea = {0.14, 0.16, 0.20}, gold = {1.00, 0.85, 0.30}}},
   ---------------------------------------------------------------- creative
   {id = "blueprint", name = "BLUEPRINT", desc = "Approved by engineering. Not by legal.", c = {
     bg = {0.05, 0.22, 0.48}, panel = {0.07, 0.27, 0.55}, line = {0.92, 0.96, 1.00}, white = {1, 1, 1},
@@ -160,7 +111,7 @@ T.LIST = {
     bg = {0.04, 0.05, 0.10}, panel = {0.07, 0.08, 0.16}, line = {0.20, 0.95, 0.90}, white = {1.00, 0.95, 0.98},
     dim = {0.95, 0.50, 0.75}, faint = {0.25, 0.20, 0.35}, red = {1.00, 0.25, 0.55}, orange = {1.00, 0.60, 0.25},
     teal = {0.10, 0.40, 0.45}, sea = {0.05, 0.08, 0.15}, gold = {1.00, 0.90, 0.50}}},
-  ---------------------------------------------------------------- memes
+  ---------------------------------------------------------------- joke palettes (colours only)
   {id = "shrek", name = "GET OUT OF MY SWAMP", desc = "Towers have layers. Like onions.", c = {
     bg = {0.10, 0.13, 0.04}, panel = {0.17, 0.21, 0.07}, line = {0.66, 0.80, 0.18}, white = {0.95, 0.95, 0.75},
     dim = {0.55, 0.45, 0.25}, faint = {0.28, 0.25, 0.10}, red = {0.80, 0.35, 0.15}, orange = {0.85, 0.70, 0.35},
@@ -207,47 +158,6 @@ T.LIST = {
     bg = {0.30, 0.05, 0.00}, panel = {0.55, 0.12, 0.00}, line = {1.00, 1.00, 0.00}, white = {1, 1, 1},
     dim = {1.00, 0.60, 0.00}, faint = {0.75, 0.25, 0.00}, red = {1.00, 0.00, 0.00}, orange = {1.00, 0.45, 0.00},
     teal = {0.80, 0.20, 0.00}, sea = {0.45, 0.08, 0.00}, gold = {1.00, 1.00, 0.30}}},
-  ---------------------------------------------------------------- meme pack (real meme sounds + gags)
-  {id = "mlg", name = "MLG PRO", desc = "Hitmarkers. Air horns. Mountain Dew. 360 no scope.", sounds = "meme", memeFX = "mlg", c = {
-    bg = {0.02, 0.02, 0.05}, panel = {0.06, 0.04, 0.10}, line = {0.45, 1.00, 0.10}, white = {1, 1, 1},
-    dim = {0.70, 0.50, 1.00}, faint = {0.25, 0.15, 0.40}, red = {1.00, 0.20, 0.20}, orange = {1.00, 0.50, 0.00},
-    teal = {0.30, 0.10, 0.50}, sea = {0.05, 0.03, 0.10}, gold = {1.00, 0.90, 0.10}}},
-  {id = "doge", name = "MUCH DOGE", desc = "such theme. very harvest. wow.", sounds = "meme", memeFX = "doge", font = "comic.ttf", c = {
-    bg = {0.98, 0.93, 0.78}, panel = {1.00, 0.97, 0.88}, line = {0.85, 0.55, 0.15}, white = {0.25, 0.15, 0.05},
-    dim = {0.55, 0.40, 0.25}, faint = {0.88, 0.80, 0.62}, red = {0.90, 0.25, 0.20}, orange = {0.95, 0.60, 0.10},
-    teal = {0.60, 0.85, 0.95}, sea = {0.85, 0.90, 0.95}, gold = {0.85, 0.65, 0.00}}},
-  {id = "illuminati", name = "ILLUMINATI CONFIRMED", desc = "The tower was in on it all along.", sounds = "meme", memeFX = "illuminati", c = {
-    bg = {0.01, 0.03, 0.01}, panel = {0.03, 0.07, 0.03}, line = {0.35, 1.00, 0.45}, white = {0.85, 1.00, 0.85},
-    dim = {0.30, 0.60, 0.35}, faint = {0.10, 0.22, 0.12}, red = {1.00, 0.30, 0.30}, orange = {0.90, 1.00, 0.40},
-    teal = {0.10, 0.30, 0.15}, sea = {0.02, 0.06, 0.03}, gold = {1.00, 0.88, 0.30}}},
-  {id = "amogus", name = "AMOGUS", desc = "One of your drones is sus. Emergency meeting!", sounds = "meme", memeFX = "amogus", c = {
-    bg = {0.02, 0.03, 0.07}, panel = {0.06, 0.07, 0.13}, line = {0.30, 0.95, 0.95}, white = {1, 1, 1},
-    dim = {0.55, 0.60, 0.75}, faint = {0.18, 0.20, 0.30}, red = {0.95, 0.15, 0.15}, orange = {1.00, 0.90, 0.20},
-    teal = {0.15, 0.30, 0.40}, sea = {0.03, 0.05, 0.10}, gold = {1.00, 0.85, 0.30}}},
-  {id = "thisisfine", name = "THIS IS FINE", desc = "The room is on fire. The coffee is still warm.", sounds = "meme", memeFX = "fine", c = {
-    bg = {0.12, 0.05, 0.02}, panel = {0.20, 0.10, 0.04}, line = {1.00, 0.70, 0.30}, white = {1.00, 0.95, 0.85},
-    dim = {0.80, 0.55, 0.35}, faint = {0.35, 0.18, 0.08}, red = {1.00, 0.30, 0.10}, orange = {1.00, 0.60, 0.10},
-    teal = {0.40, 0.20, 0.08}, sea = {0.15, 0.06, 0.02}, gold = {1.00, 0.85, 0.40}}},
-  {id = "gigachad", name = "AVERAGE TOWER ENJOYER", desc = "Yes. Chiselled HUD. No hesitation.", sounds = "meme", c = {
-    bg = {0.02, 0.02, 0.02}, panel = {0.08, 0.08, 0.08}, line = {0.92, 0.92, 0.92}, white = {1, 1, 1},
-    dim = {0.60, 0.60, 0.60}, faint = {0.22, 0.22, 0.22}, red = {0.85, 0.85, 0.85}, orange = {1, 1, 1},
-    teal = {0.25, 0.25, 0.25}, sea = {0.05, 0.05, 0.05}, gold = {0.95, 0.95, 0.95}}},
-  ---------------------------------------------------------------- social media (rounded web app style)
-  {id = "youtube", name = "YOUTUBE", desc = "Smash that like button. Hit the bell. Harvest.", style = "web", font = "arial.ttf",
-    round = 10, shadow = true, titleCase = true, c = {
-    bg = {0.059, 0.059, 0.059}, panel = {0.13, 0.13, 0.13}, line = {1.00, 0.00, 0.00}, white = {0.95, 0.95, 0.95},
-    dim = {0.67, 0.67, 0.67}, faint = {0.25, 0.25, 0.25}, red = {1.00, 0.20, 0.20}, orange = {1.00, 0.00, 0.20},
-    teal = {0.16, 0.30, 0.50}, sea = {0.09, 0.09, 0.10}, gold = {1.00, 0.85, 0.30}}},
-  {id = "reddit", name = "REDDIT", desc = "Upvotes to the left. Edit: thanks for the gold, kind stranger.", style = "web", font = "segoeui.ttf",
-    round = 8, shadow = true, titleCase = true, c = {
-    bg = {0.855, 0.878, 0.902}, panel = {1, 1, 1}, line = {1.00, 0.27, 0.00}, white = {0.11, 0.11, 0.11},
-    dim = {0.47, 0.49, 0.49}, faint = {0.88, 0.89, 0.90}, red = {0.90, 0.20, 0.10}, orange = {1.00, 0.27, 0.00},
-    teal = {0.44, 0.58, 1.00}, sea = {0.80, 0.86, 0.96}, gold = {1.00, 0.84, 0.21}}},
-  {id = "twitter", name = "TWITTER (X)", desc = "Now called X. Nobody calls it X.", style = "web", font = "segoeui.ttf",
-    round = 16, shadow = false, titleCase = true, c = {
-    bg = {0, 0, 0}, panel = {0.086, 0.094, 0.11}, line = {0.114, 0.608, 0.941}, white = {0.906, 0.914, 0.918},
-    dim = {0.443, 0.463, 0.482}, faint = {0.184, 0.20, 0.212}, red = {0.976, 0.094, 0.502}, orange = {0.114, 0.608, 0.941},
-    teal = {0.08, 0.28, 0.42}, sea = {0.05, 0.07, 0.09}, gold = {0.00, 0.73, 0.49}}},
   ---------------------------------------------------------------- really dumb (the whole screen misbehaves; F9 escapes)
   {id = "australia", name = "G'DAY MATE", desc = "Australian edition. Everything is the right way up now. [F9 escapes]",
     cursed = true, screen = "upsidedown", c = {
@@ -460,18 +370,11 @@ end
 function T.apply(id)
   local t = T.get(id)
   T.current = t
-  -- desktop-app themes: drawing style, system font, optional see-through window
-  H.style = t.style
-  require("game.memes").fx = t.memeFX
+  -- every theme is a HUD theme: palette, optional typeface, optional sound pack
+  H.style = nil
   require("game.fx").soundPack = t.cursed and "stupid" or nil
   V.setFace(t.font)
-  V.round, V.shadow = t.round or 0, t.shadow == true
-  V.chamfer = t.style and 0 or H.CUT -- the HUD silhouette belongs to the HUD themes only
-  V.liquid = t.liquid
-  H.wallpaper = t.wallpaper
-  H.macDark = t.liquid and t.liquid.dark or false
-  V.caseFn = t.titleCase and titleCase or nil
-  if t.glass then Glass.set(true, t.c.bg, t.glass) elseif Glass.on then Glass.set(false) end
+  V.chamfer = H.CUT
   for k, v in pairs(t.c) do
     local dst = H.C[k]
     if dst then dst[1], dst[2], dst[3] = v[1], v[2], v[3] end

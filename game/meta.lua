@@ -11,7 +11,6 @@ local C, fmt, rnd = H.C, H.fmt, H.rnd
 function G.rankTitle(r)
   local t = "TRAINEE"
   for _, x in ipairs(D.RANK_TITLES) do if r >= x[1] then t = x[2] end end
-  if G.memeOn then for _, x in ipairs(D.RANK_TITLES_MEME) do if r >= x[1] then t = x[2] end end end
   return t
 end
 

@@ -5,7 +5,7 @@ Set.defaults = {
   -- display
   vsync = true, fpsCap = 0, showFps = false, scanlines = true, vignette = true, reticle = false, numFormat = "short",
   -- audio
-  master = 0.8, vUi = 1, vReward = 1, vAlert = 1, ambient = 0.3, muteUnfocused = false, memeSounds = false, memeCaptions = true,
+  master = 0.8, vUi = 1, vReward = 1, vAlert = 1, ambient = 0.3, muteUnfocused = false,
   -- gameplay
   confirmReboot = true, fastReveal = false, holdSpeed = 1, anyKey = false, ticker = "all", autosave = 15, lazy = false,
   -- comfort
