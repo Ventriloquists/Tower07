@@ -167,6 +167,7 @@ function love.load(args)
   for _, a in ipairs(args or {}) do if a == "--longrun" then G.longRun() elseif a == "--longrun-reboot" then G.longRun(true) elseif a == "--longrun-save" then G.longRun(true, true) end end
   for _, a in ipairs(args or {}) do if a == "--rescale" then G.rescaleSave() end end
   for _, a in ipairs(args or {}) do
+    if a == "--social" then require("tools.social").start() return end -- dev: GitHub social preview images
     if a == "--econdiag" then
       -- read-only economy breakdown of the real save -> econdiag.txt (quits without saving)
       local ok, r = pcall(function() G.recalc(); return G.econReport() end)

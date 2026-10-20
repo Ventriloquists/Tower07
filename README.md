@@ -4,7 +4,7 @@ An idle / incremental game built with [LÖVE](https://love2d.org/) in a clean, O
 
 You are the last technician of Tower 07. Tap the reactor, build a harvesting fleet, pump hydro from the rigs, fabricate drones, push back scav raiders on the tactical map, loot crates and reboot the cycle for permanent Core Data. The tower keeps harvesting while you're away.
 
-![The CORE station: the Tower 07 reactor in the heat sweet spot, the Action Stack on the left, live telemetry on the right and the Spine navigation at the bottom](docs/screenshot.png)
+![Tower 07: Harvest Protocol, an idle game in a sci-fi HUD style: the tower reactor in its heat sweet spot](docs/social/social-1-hero.png)
 
 ## Features
 
