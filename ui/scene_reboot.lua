@@ -85,7 +85,7 @@ local function prestige()
   if H.mouseIn(x + 14, y + h - 122, w - 28, 38) then
     H.setTip("SPEND ALL CORE DATA", "Keeps installing the cheapest affordable rank until the bank runs dry. Spreads Core Data across the whole tree, including the endless OVERDRIVE nodes.")
   end
-  local label = can and (G.novaConfirm > 0 and "CONFIRM REBOOT?" or "INITIATE REBOOT") or "NOT ENOUGH ENERGY YET"
+  local label = can and (G.novaConfirm > 0 and "CONFIRM REBOOT?" or "INITIATE REBOOT") or (capped and "RUN CHARGING..." or "NOT ENOUGH ENERGY YET")
   H.button(x + 14, y + h - 76, w - 28, 60, label, can, function()
     if G.novaConfirm > 0 or not Set.v.confirmReboot then G.novaConfirm = 0; G.doReboot()
     else G.novaConfirm = 3; FX.play("signal", 0.6, 0.6) end
